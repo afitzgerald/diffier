@@ -6,6 +6,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const gitlib = require('./git');
 const keymap = require('./keymap');
+const { THEMES, DEFAULT_THEME } = require('./themes');
 
 const SMOKE = process.env.DIFFIER_SMOKE === '1';
 
@@ -129,7 +130,12 @@ handle('git:rollback', (files) => gitlib.rollback(requireRepo(), files));
 handle('git:lastMessage', () => gitlib.lastCommitMessage(requireRepo()));
 handle('file:save', (relPath, content) => gitlib.saveFile(requireRepo(), relPath, content));
 handle('settings:get', () => loadSettings());
-handle('settings:set', (patch) => saveSettings(patch));
+handle('settings:set', (patch) => {
+  const merged = saveSettings(patch);
+  // Theme changes from the dialog must be reflected in the menu radios.
+  if ('theme' in patch) buildMenu();
+  return merged;
+});
 handle('keymap:set', (overrides) => {
   saveSettings({ keymap: overrides });
   buildMenu(); // menu accelerators must follow the new bindings
@@ -157,7 +163,9 @@ function send(id) {
 
 function buildMenu() {
   const isMac = process.platform === 'darwin';
-  const bindings = keymap.effective(loadSettings().keymap || {});
+  const settings = loadSettings();
+  const bindings = keymap.effective(settings.keymap || {});
+  const currentTheme = THEMES[settings.theme] ? settings.theme : DEFAULT_THEME;
 
   // Menu item for a rebindable action. When the binding converts to a menu
   // accelerator we attach it with registerAccelerator: false — on macOS the
@@ -203,7 +211,7 @@ function buildMenu() {
         mi('open-repo', 'Open Repository…'),
         { type: 'separator' },
         mi('save', 'Save'),
-        ...(isMac ? [] : [{ type: 'separator' }, mi('keymap-settings', 'Keymap Settings…')]),
+        ...(isMac ? [] : [{ type: 'separator' }, mi('keymap-settings', 'Settings…')]),
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' },
       ],
@@ -249,6 +257,15 @@ function buildMenu() {
       label: 'View',
       submenu: [
         mi('toggle-panel', 'Commit Tool Window'),
+        {
+          label: 'Theme',
+          submenu: Object.values(THEMES).map((t) => ({
+            label: t.label,
+            type: 'radio',
+            checked: t.id === currentTheme,
+            click: () => send('theme:' + t.id),
+          })),
+        },
         { type: 'separator' },
         { role: 'togglefullscreen' },
         { role: 'toggleDevTools' },
@@ -270,7 +287,7 @@ function createWindow() {
     height: 900,
     minWidth: 900,
     minHeight: 560,
-    backgroundColor: '#2b2b2b',
+    backgroundColor: '#101113',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 12, y: 12 },
     webPreferences: {

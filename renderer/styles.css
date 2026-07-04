@@ -1,29 +1,41 @@
-/* IntelliJ Darcula-inspired theme */
+/* Themeable UI — every color is a variable set by renderer/app.js from
+   main/themes.js. The :root defaults below mirror the Islands Dark theme so
+   the pre-boot flash matches the default theme. */
 
 :root {
-  --bg: #2b2b2b;
-  --panel-bg: #3c3f41;
-  --panel-header: #3c3f41;
-  --border: #323232;
-  --border-light: #515151;
-  --text: #bbbbbb;
+  --window-bg: #101113;
+  --bg: #1e1f22;
+  --panel-bg: #1e1f22;
+  --border: #2b2d30;
+  --border-light: #393b40;
+  --text: #bcbec4;
   --text-bright: #dfe1e5;
-  --dim: #808080;
-  --selection: #4b6eaf;
-  --selection-inactive: #0d293e;
-  --hover: #4c5052;
+  --dim: #6f737a;
+  --selection: #2e436e;
+  --selection-inactive: #313438;
+  --selection-fg: #dfe1e5;
+  --hover: #2b2d30;
   --accent: #3574f0;
-  --btn-bg: #4c5052;
-  --btn-primary: #365880;
-  --btn-primary-border: #4c708c;
+  --btn-bg: #2b2d30;
+  --btn-hover: #393b40;
+  --btn-primary: #3574f0;
+  --btn-primary-hover: #4884f5;
+  --btn-primary-border: #3574f0;
+  --input-bg: #2b2d30;
+  --toast-bg: #2b2d30;
+  --toast-border: #393b40;
+  --toast-error-bg: #402b2c;
+  --toast-error-border: #bd5757;
+  --scrollbar: #43454a;
+  --scrollbar-hover: #55575c;
 
-  /* IntelliJ VCS file status colors */
-  --st-modified: #6897bb;
-  --st-added: #629755;
-  --st-deleted: #6e6e6e;
-  --st-unversioned: #d1675a;
-  --st-conflict: #d5756c;
-  --st-moved: #3a8484;
+  /* VCS file status colors */
+  --st-modified: #56a8f5;
+  --st-added: #73bd79;
+  --st-deleted: #7a7e85;
+  --st-unversioned: #ed7261;
+  --st-conflict: #f75464;
+  --st-moved: #43b9c9;
 
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SF Mono", Menlo, Monaco, "JetBrains Mono", Consolas, monospace;
@@ -137,9 +149,9 @@ html, body {
 
 .tree-row:hover { background: var(--hover); }
 .tree-row.selected { background: var(--selection-inactive); }
-#tree:focus .tree-row.selected { background: var(--selection); color: #fff; }
+#tree:focus .tree-row.selected { background: var(--selection); color: var(--selection-fg); }
 #tree:focus .tree-row.selected .file-name,
-#tree:focus .tree-row.selected .dim { color: #fff; }
+#tree:focus .tree-row.selected .dim { color: var(--selection-fg); }
 
 .tree-chevron {
   width: 16px;
@@ -193,7 +205,7 @@ html, body {
 }
 
 #commit-message {
-  background: #45494a;
+  background: var(--input-bg);
   color: var(--text-bright);
   border: 1px solid var(--border-light);
   border-radius: 3px;
@@ -232,14 +244,15 @@ button {
   font-family: var(--font-ui);
   cursor: pointer;
 }
-button:hover { background: #55595b; }
+button:hover { background: var(--btn-hover); }
 button:disabled { opacity: 0.45; cursor: default; }
 
 button.primary {
   background: var(--btn-primary);
   border-color: var(--btn-primary-border);
+  color: #ffffff;
 }
-button.primary:hover { background: #40668f; }
+button.primary:hover { background: var(--btn-primary-hover); }
 
 .icon-btn {
   padding: 1px 6px;
@@ -299,7 +312,7 @@ button.primary:hover { background: #40668f; }
   margin: 0 5px;
 }
 
-#viewer-mode {
+select {
   background: var(--btn-bg);
   color: var(--text-bright);
   border: 1px solid var(--border-light);
@@ -307,6 +320,7 @@ button.primary:hover { background: #40668f; }
   font-size: 12px;
   padding: 2px 4px;
   outline: none;
+  font-family: var(--font-ui);
 }
 
 #diff-editor { flex: 1; min-height: 0; }
@@ -372,9 +386,9 @@ kbd {
   bottom: 40px;
   left: 50%;
   transform: translateX(-50%) translateY(10px);
-  background: #4c5052;
+  background: var(--toast-bg);
   color: var(--text-bright);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--toast-border);
   border-radius: 4px;
   padding: 7px 14px;
   font-size: 12px;
@@ -385,7 +399,7 @@ kbd {
   max-width: 70vw;
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-#toast.error { background: #593d41; border-color: #8f5247; }
+#toast.error { background: var(--toast-error-bg); border-color: var(--toast-error-border); }
 
 /* --------------------------------------------------------- keymap dialog */
 
@@ -424,6 +438,22 @@ kbd {
   color: var(--text-bright);
 }
 .dialog-header .dim { font-size: 12px; }
+
+.dialog-section {
+  padding: 10px 16px 4px;
+  font-weight: 600;
+  color: var(--text-bright);
+  font-size: 12px;
+}
+.dialog-section .dim { font-weight: 400; }
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 16px;
+  gap: 8px;
+}
+.settings-row select { min-width: 160px; }
 
 #keymap-list {
   overflow-y: auto;
@@ -482,6 +512,47 @@ kbd {
 /* ------------------------------------------------------------- scrollbar */
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #5a5d5e; border-radius: 5px; }
-::-webkit-scrollbar-thumb:hover { background: #6a6d6e; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ------------------------------------------------------- islands layout
+   Port of the JetBrains Islands UI: the tool window and editor float as
+   rounded panels on a darker window background. */
+
+body[data-theme-style="islands"] { background: var(--window-bg); }
+
+body[data-theme-style="islands"] #titlebar {
+  background: var(--window-bg);
+  border-bottom: none;
+}
+
+body[data-theme-style="islands"] #main {
+  padding: 0 8px 8px;
+  gap: 0;
+}
+
+body[data-theme-style="islands"] #commit-panel,
+body[data-theme-style="islands"] #diff-pane {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--panel-bg);
+}
+
+body[data-theme-style="islands"] #splitter { width: 8px; }
+body[data-theme-style="islands"] #splitter:hover { background: transparent; }
+body[data-theme-style="islands"] #splitter::after {
+  content: "";
+  display: block;
+  width: 2px;
+  height: 100%;
+  margin: 0 auto;
+  border-radius: 1px;
+}
+body[data-theme-style="islands"] #splitter:hover::after { background: var(--accent); }
+
+body[data-theme-style="islands"] #statusbar {
+  background: var(--window-bg);
+  border-top: none;
+}

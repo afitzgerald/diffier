@@ -46,6 +46,42 @@ function statusMsg(msg) {
   $('status-message').textContent = msg;
 }
 
+// ------------------------------------------------------------------ themes
+
+const THEMES = window.api.themes || {};
+const DEFAULT_THEME = window.api.defaultTheme || 'islands-dark';
+
+function currentTheme() {
+  const id = state.settings.theme;
+  return THEMES[id] || THEMES[DEFAULT_THEME];
+}
+
+function applyTheme(id) {
+  const t = THEMES[id] || THEMES[DEFAULT_THEME];
+  if (!t) return;
+  for (const [k, v] of Object.entries(t.vars)) {
+    document.documentElement.style.setProperty('--' + k, v);
+  }
+  document.body.dataset.theme = t.id;
+  document.body.dataset.themeStyle = t.style;
+  state.settings.theme = t.id;
+  if (window.monaco && monaco.editor) {
+    monaco.editor.defineTheme('diffier-theme', t.monaco);
+    monaco.editor.setTheme('diffier-theme');
+  }
+  const sel = $('theme-select');
+  if (sel && sel.value !== t.id) sel.value = t.id;
+}
+
+async function setTheme(id) {
+  applyTheme(id);
+  try {
+    await window.api.setSettings({ theme: state.settings.theme });
+  } catch {
+    /* theme still applied locally */
+  }
+}
+
 // ------------------------------------------------------------------ keymap
 
 const IS_MAC = /Mac/i.test(navigator.platform);
@@ -126,7 +162,7 @@ function updateShortcutHints() {
   $('btn-commit-push').title = 'Commit and Push' + hint('commit-and-push');
   $('btn-refresh').title = 'Refresh File Status' + hint('refresh');
   $('btn-rollback').title = 'Rollback…' + hint('rollback');
-  $('btn-keymap').title = 'Keymap Settings' + hint('keymap-settings');
+  $('btn-keymap').title = 'Settings' + hint('keymap-settings');
 }
 
 // Layout-stable key name from a keyboard event (e.key for shifted
@@ -201,37 +237,10 @@ const monacoReady = new Promise((resolve) => {
     } catch {
       /* older monaco without addKeybindingRules */
     }
-    monaco.editor.defineTheme('darcula', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [
-        { token: '', foreground: 'a9b7c6', background: '2b2b2b' },
-        { token: 'comment', foreground: '808080' },
-        { token: 'keyword', foreground: 'cc7832' },
-        { token: 'number', foreground: '6897bb' },
-        { token: 'string', foreground: '6a8759' },
-        { token: 'type', foreground: 'ffc66d' },
-      ],
-      colors: {
-        'editor.background': '#2b2b2b',
-        'editor.foreground': '#a9b7c6',
-        'editor.lineHighlightBackground': '#323232',
-        'editorLineNumber.foreground': '#606366',
-        'editorGutter.background': '#313335',
-        'editor.selectionBackground': '#214283',
-        'diffEditor.insertedTextBackground': '#29443626',
-        'diffEditor.insertedLineBackground': '#29443680',
-        'diffEditor.removedTextBackground': '#48373526',
-        'diffEditor.removedLineBackground': '#40353580',
-        'diffEditorGutter.insertedLineBackground': '#294436',
-        'diffEditorGutter.removedLineBackground': '#403535',
-        'scrollbarSlider.background': '#5a5d5e66',
-        'scrollbarSlider.hoverBackground': '#6a6d6e88',
-      },
-    });
+    monaco.editor.defineTheme('diffier-theme', currentTheme().monaco);
 
     diffEditor = monaco.editor.createDiffEditor($('diff-editor'), {
-      theme: 'darcula',
+      theme: 'diffier-theme',
       automaticLayout: true,
       renderSideBySide: state.settings.viewMode !== 'unified',
       originalEditable: false,
@@ -1102,6 +1111,16 @@ function toggleKeymapDialog() {
 }
 
 $('btn-keymap').addEventListener('click', openKeymapDialog);
+(() => {
+  const sel = $('theme-select');
+  for (const t of Object.values(THEMES)) {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = t.label;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener('change', () => setTheme(sel.value));
+})();
 $('keymap-done').addEventListener('click', closeKeymapDialog);
 $('keymap-reset-all').addEventListener('click', () => {
   km.overrides = {};
@@ -1117,6 +1136,7 @@ $('keymap-overlay').addEventListener('mousedown', (e) => {
 
 window.api.onMenu(async (id) => {
   if (id === 'window-focus') return refreshStatus(true);
+  if (id.startsWith('theme:')) return setTheme(id.slice('theme:'.length));
   runAction(id);
 });
 
@@ -1217,7 +1237,11 @@ $('amend-checkbox').addEventListener('change', async (e) => {
   }
   km.overrides = { ...(state.settings.keymap || {}) };
   rebuildKeymap();
+  applyTheme(state.settings.theme || DEFAULT_THEME);
   await monacoReady;
+  // Monaco may have initialized before settings arrived — reapply so the
+  // editor theme matches the persisted choice.
+  applyTheme(state.settings.theme || DEFAULT_THEME);
   diffEditor.updateOptions({
     renderSideBySide: state.settings.viewMode !== 'unified',
     ignoreTrimWhitespace: !!state.settings.ignoreWhitespace,
