@@ -404,6 +404,8 @@ function argvRepo(argv: string[]): string | null {
 
 // ------------------------------------------------------------------ window
 
+const APP_ICON = path.join(__dirname, '..', 'build', 'icon.png');
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1440,
@@ -411,6 +413,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 560,
     backgroundColor: '#101113',
+    icon: APP_ICON,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 12, y: 12 },
     webPreferences: {
@@ -494,6 +497,16 @@ if (SMOKE) {
       .catch(() => {});
   });
   app.whenReady().then(() => {
+    // Packaged mac builds get their dock icon and About panel from the
+    // bundled .icns/Info.plist; in dev (`electron .`) both otherwise fall
+    // back to Electron's own, since role: 'about' reads the running
+    // Electron.app bundle rather than app.getName().
+    if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(APP_ICON);
+    app.setAboutPanelOptions({
+      applicationName: app.name,
+      applicationVersion: app.getVersion(),
+      iconPath: APP_ICON,
+    });
     buildMenu();
     createWindow();
     app.on('activate', () => {

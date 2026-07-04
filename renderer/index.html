@@ -5,7 +5,7 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; img-src 'self' data:; worker-src 'self';" />
   <title>Diffier</title>
-  <link rel="icon" href="data:," />
+  <link rel="icon" href="favicon-32.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -24,19 +24,19 @@
           <button class="panel-tab" id="tab-log" data-view="log">Log</button>
         </span>
         <span class="panel-actions">
-          <button class="icon-btn" id="btn-refresh" title="Refresh File Status">⟳</button>
-          <button class="icon-btn" id="btn-stash" title="Stash / Unstash…">⇣</button>
-          <button class="icon-btn" id="btn-rollback" title="Rollback…">↩</button>
-          <button class="icon-btn" id="btn-expand-all" title="Expand All">＋</button>
-          <button class="icon-btn" id="btn-collapse-all" title="Collapse All">－</button>
-          <button class="icon-btn" id="btn-keymap" title="Keymap Settings">⌘</button>
+          <button class="icon-btn svg-icon" id="btn-refresh" title="Refresh File Status" style="--icon: url('icons/refresh.svg')"></button>
+          <button class="icon-btn svg-icon" id="btn-stash" title="Stash / Unstash…" style="--icon: url('icons/stash.svg')"></button>
+          <button class="icon-btn svg-icon" id="btn-rollback" title="Rollback…" style="--icon: url('icons/rollback.svg')"></button>
+          <button class="icon-btn svg-icon" id="btn-expand-all" title="Expand All" style="--icon: url('icons/expand-all.svg')"></button>
+          <button class="icon-btn svg-icon" id="btn-collapse-all" title="Collapse All" style="--icon: url('icons/collapse-all.svg')"></button>
+          <button class="icon-btn svg-icon" id="btn-keymap" title="Keymap Settings" style="--icon: url('icons/settings.svg')"></button>
         </span>
       </div>
 
       <div id="commit-view">
         <div id="tree-filter-row">
           <input id="tree-filter" type="text" placeholder="Filter changes…" spellcheck="false" />
-          <button class="icon-btn hidden" id="tree-filter-clear" title="Clear filter">✕</button>
+          <button class="icon-btn svg-icon hidden" id="tree-filter-clear" title="Clear filter" style="--icon: url('icons/clear.svg')"></button>
         </div>
 
         <div id="tree" tabindex="0" aria-label="Changed files"></div>
@@ -49,7 +49,7 @@
               <input type="checkbox" id="amend-checkbox" />
               <span>Amend</span>
             </label>
-            <button class="icon-btn" id="btn-msg-history" title="Commit Message History (⌘E)">🕘</button>
+            <button class="icon-btn svg-icon" id="btn-msg-history" title="Commit Message History (⌘E)" style="--icon: url('icons/history.svg')"></button>
             <span id="subject-length" class="dim" title="Subject line length"></span>
             <span class="spacer"></span>
             <span id="commit-count" class="dim"></span>
@@ -64,7 +64,7 @@
       <div id="log-view" class="hidden">
         <div id="log-file-filter" class="hidden">
           <span id="log-file-filter-label"></span>
-          <button class="icon-btn" id="log-file-filter-clear" title="Show full history">✕</button>
+          <button class="icon-btn svg-icon" id="log-file-filter-clear" title="Show full history" style="--icon: url('icons/clear.svg')"></button>
         </div>
         <div id="log-list" tabindex="0" aria-label="Commits"></div>
         <div id="log-details" class="hidden">
@@ -86,26 +86,26 @@
         </div>
         <div id="diff-controls">
           <span id="diff-count" class="dim"></span>
-          <button class="icon-btn" id="btn-prev-diff" title="Previous Difference (⇧F7)">↑</button>
-          <button class="icon-btn" id="btn-next-diff" title="Next Difference (F7)">↓</button>
+          <button class="icon-btn svg-icon" id="btn-prev-diff" title="Previous Difference (⇧F7)" style="--icon: url('icons/chevron-up.svg')"></button>
+          <button class="icon-btn svg-icon" id="btn-next-diff" title="Next Difference (F7)" style="--icon: url('icons/chevron-down.svg')"></button>
           <span class="toolbar-sep"></span>
-          <button class="icon-btn" id="btn-prev-file" title="Previous Changed File (⌘⇧[ / ⌥←)">«</button>
-          <button class="icon-btn" id="btn-next-file" title="Next Changed File (⌘⇧] / ⌥→)">»</button>
+          <button class="icon-btn svg-icon rotate-left" id="btn-prev-file" title="Previous Changed File (⌘⇧[ / ⌥←)" style="--icon: url('icons/chevron-up.svg')"></button>
+          <button class="icon-btn svg-icon rotate-right" id="btn-next-file" title="Next Changed File (⌘⇧] / ⌥→)" style="--icon: url('icons/chevron-up.svg')"></button>
           <span class="toolbar-sep"></span>
           <select id="viewer-mode" title="Diff viewer mode">
             <option value="side">Side-by-Side Viewer</option>
             <option value="unified">Unified Viewer</option>
           </select>
-          <button class="icon-btn" id="btn-whitespace" title="Ignore Leading/Trailing Whitespace">⎵</button>
-          <button class="icon-btn" id="btn-collapse-unchanged" title="Collapse Unchanged Regions">⇕</button>
-          <button class="icon-btn" id="btn-blame" title="Blame Annotations">👤</button>
-          <button class="icon-btn hidden" id="btn-image-view" title="Toggle Image Preview">🖼</button>
+          <button class="icon-btn svg-icon" id="btn-whitespace" title="Ignore Leading/Trailing Whitespace" style="--icon: url('icons/whitespace.svg')"></button>
+          <button class="icon-btn svg-icon" id="btn-collapse-unchanged" title="Collapse Unchanged Regions" style="--icon: url('icons/collapse-regions.svg')"></button>
+          <button class="icon-btn svg-icon" id="btn-blame" title="Blame Annotations" style="--icon: url('icons/blame.svg')"></button>
+          <button class="icon-btn svg-icon hidden" id="btn-image-view" title="Toggle Image Preview" style="--icon: url('icons/image.svg')"></button>
         </div>
       </div>
       <div id="conflict-bar" class="hidden">
         <span id="conflict-count"></span>
-        <button class="icon-btn" id="btn-prev-conflict" title="Previous Conflict">↑</button>
-        <button class="icon-btn" id="btn-next-conflict" title="Next Conflict">↓</button>
+        <button class="icon-btn svg-icon" id="btn-prev-conflict" title="Previous Conflict" style="--icon: url('icons/chevron-up.svg')"></button>
+        <button class="icon-btn svg-icon" id="btn-next-conflict" title="Next Conflict" style="--icon: url('icons/chevron-down.svg')"></button>
         <span class="toolbar-sep"></span>
         <button id="btn-all-ours"></button>
         <button id="btn-all-theirs"></button>
