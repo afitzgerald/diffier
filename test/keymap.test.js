@@ -45,6 +45,7 @@ for (const isMac of [true, false]) {
   const seen = new Map();
   for (const a of km.ACTIONS) {
     const n = km.normalize(a.default, isMac);
+    if (n === null) continue; // unbound by default
     assert.ok(!seen.has(n), `default conflict: ${a.id} vs ${seen.get(n)} on ${n}`);
     seen.set(n, a.id);
   }

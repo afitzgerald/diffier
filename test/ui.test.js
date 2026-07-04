@@ -49,12 +49,42 @@ fs.writeFileSync(path.join(repo, 'notes.txt'), 'untracked\n');
 
 const settings = { lastRepo: repo };
 const rpc = {
-  'repo:last': async () => ({ root: repo, name: path.basename(repo) }),
+  'repo:last': async () => ({
+    root: repo,
+    name: path.basename(repo),
+    isWorktree: false,
+    recents: [repo],
+  }),
+  'repo:open': async ([dir]) => ({
+    root: dir,
+    name: path.basename(dir),
+    isWorktree: false,
+    recents: [dir],
+  }),
   'git:status': () => gitlib.status(repo),
   'git:diff': ([p, t, o]) => gitlib.fileDiff(repo, p, t, o),
-  'git:commit': ([{ files, message, amend }]) => gitlib.commit(repo, files, message, amend),
+  'git:commit': ([{ files, message, amend, partials }]) =>
+    gitlib.commit(repo, files, message, amend, partials || []),
   'git:rollback': ([files]) => gitlib.rollback(repo, files),
   'git:lastMessage': () => gitlib.lastCommitMessage(repo),
+  'git:pull': () => gitlib.pull(repo),
+  'git:fetch': () => gitlib.fetch(repo),
+  'git:branches': () => gitlib.branches(repo),
+  'git:checkout': ([name]) => gitlib.checkout(repo, name),
+  'git:createBranch': ([name]) => gitlib.createBranch(repo, name),
+  'git:log': ([opts]) => gitlib.log(repo, opts || {}),
+  'git:commitDetails': ([hash]) => gitlib.commitDetails(repo, hash),
+  'git:commitFileDiff': ([hash, p, t, o, r2]) => gitlib.commitFileDiff(repo, hash, p, t, o, r2),
+  'git:stashList': () => gitlib.stashList(repo),
+  'git:stashPush': ([msg, untracked]) => gitlib.stashPush(repo, msg, untracked),
+  'git:stashPop': ([ref]) => gitlib.stashPop(repo, ref),
+  'git:stashApply': ([ref]) => gitlib.stashApply(repo, ref),
+  'git:stashDrop': ([ref]) => gitlib.stashDrop(repo, ref),
+  'git:blame': ([p]) => gitlib.blame(repo, p),
+  'git:conflictInfo': ([p]) => gitlib.conflictInfo(repo, p),
+  'git:markResolved': ([p, c]) => gitlib.markResolved(repo, p, c),
+  'git:commitTemplate': async () => '',
+  'app:badge': async () => null,
   'file:save': ([p, c]) => gitlib.saveFile(repo, p, c),
   'settings:get': async () => settings,
   'settings:set': async ([patch]) => Object.assign(settings, patch),
@@ -114,8 +144,17 @@ const API_SHIM = `
   window.api = new Proxy({}, {
     get(_, name) {
       const channels = {
-        openLastRepo: 'repo:last', gitStatus: 'git:status', gitDiff: 'git:diff',
-        gitCommit: 'git:commit', gitPush: 'git:push', gitRollback: 'git:rollback',
+        openLastRepo: 'repo:last', openRepo: 'repo:open', gitStatus: 'git:status',
+        gitDiff: 'git:diff', gitCommit: 'git:commit', gitPush: 'git:push',
+        gitPull: 'git:pull', gitFetch: 'git:fetch', gitBranches: 'git:branches',
+        gitCheckout: 'git:checkout', gitCreateBranch: 'git:createBranch',
+        gitLog: 'git:log', gitCommitDetails: 'git:commitDetails',
+        gitCommitFileDiff: 'git:commitFileDiff', gitStashList: 'git:stashList',
+        gitStashPush: 'git:stashPush', gitStashPop: 'git:stashPop',
+        gitStashApply: 'git:stashApply', gitStashDrop: 'git:stashDrop',
+        gitBlame: 'git:blame', gitConflictInfo: 'git:conflictInfo',
+        gitMarkResolved: 'git:markResolved', gitCommitTemplate: 'git:commitTemplate',
+        setBadge: 'app:badge', gitRollback: 'git:rollback',
         gitLastMessage: 'git:lastMessage', saveFile: 'file:save',
         getSettings: 'settings:get', setSettings: 'settings:set',
         confirm: 'app:confirm', revealFile: 'shell:reveal', setKeymap: 'keymap:set',
@@ -123,7 +162,7 @@ const API_SHIM = `
       if (name === 'keymapActions') return ${JSON.stringify(keymapLib.ACTIONS)};
       if (name === 'themes') return ${JSON.stringify(themesLib.THEMES)};
       if (name === 'defaultTheme') return ${JSON.stringify(themesLib.DEFAULT_THEME)};
-      if (name === 'onMenu' || name === 'onRepoChanged') return () => {};
+      if (name === 'onMenu' || name === 'onRepoChanged' || name === 'onRepoOpened') return () => {};
       if (name === 'openRepoDialog') return async () => null;
       const ch = channels[name];
       return async (...args) => {
