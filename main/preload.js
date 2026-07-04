@@ -1,6 +1,7 @@
 'use strict';
 
 const { contextBridge, ipcRenderer } = require('electron');
+const keymap = require('./keymap');
 
 async function call(channel, ...args) {
   const res = await ipcRenderer.invoke(channel, ...args);
@@ -26,6 +27,9 @@ contextBridge.exposeInMainWorld('api', {
 
   getSettings: () => call('settings:get'),
   setSettings: (patch) => call('settings:set', patch),
+
+  keymapActions: keymap.ACTIONS,
+  setKeymap: (overrides) => call('keymap:set', overrides),
 
   onMenu: (cb) => ipcRenderer.on('menu', (_e, id) => cb(id)),
   onRepoChanged: (cb) => ipcRenderer.on('repo:changed', () => cb()),

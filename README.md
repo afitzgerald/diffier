@@ -35,6 +35,15 @@ working-tree changes in any Git repository.
 
 ## Keybindings (IntelliJ keymap)
 
+Every shortcut below is the default and can be changed: open **Keymap
+Settings** (`⌘,`, the ⌘ button in the Commit panel header, or the app
+menu), click a shortcut, and press your preferred combination. Assigning a
+combination that another action already uses steals it from that action;
+`↺` resets one action, **Reset All to Defaults** resets everything, `✕`
+unbinds an action. Overrides are stored in `settings.json` under `keymap`
+and are applied everywhere — key handling, menu accelerators, and button
+tooltips. Tree navigation (`↑` `↓` `←` `→` `Space` `⏎`) is fixed.
+
 | Key | Action |
 | --- | --- |
 | `F7` / `⇧F7` | Next / previous difference; at the last one, press again to continue into the next file |
@@ -54,6 +63,7 @@ working-tree changes in any Git repository.
 | `⌘0` | Toggle the commit tool window |
 | `⌘O` | Open a repository |
 | `⌘R` | Refresh file status |
+| `⌘,` | Keymap settings |
 
 ## Running
 
@@ -76,9 +86,10 @@ npm run dist        # produces dist/Diffier-<version>.dmg and .zip
 ## Development & tests
 
 - `npm test` — integration tests for the Git layer (`main/git.js`) against
-  a throwaway repository: status parsing for every change type, renames,
+  a throwaway repository (status parsing for every change type, renames,
   diffs, partial commits, amend, rollback, binary detection, path-escape
-  protection.
+  protection) plus unit tests for the keymap module (normalization,
+  accelerator conversion, default-conflict check).
 - `node test/ui.test.js` — end-to-end UI test. The renderer talks to the
   main process only through `window.api`, so the test serves the renderer
   over HTTP with an RPC shim backed by the real Git layer and drives the
@@ -92,9 +103,10 @@ npm run dist        # produces dist/Diffier-<version>.dmg and .zip
 
 ```
 main/
-  main.js      Electron main process: window, menu (IntelliJ accelerators),
+  main.js      Electron main process: window, menu (built from the keymap),
                IPC, settings persistence, recursive file watcher
   git.js       All Git operations (spawns the git CLI; no native deps)
+  keymap.js    Action/keybinding definitions shared by both processes
   preload.js   contextBridge API — the renderer has no Node access
 renderer/
   index.html   Layout: commit panel, diff toolbar, Monaco container

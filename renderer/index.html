@@ -18,10 +18,11 @@
       <div class="panel-header">
         <span class="panel-title">Commit</span>
         <span class="panel-actions">
-          <button class="icon-btn" id="btn-refresh" title="Refresh File Status (⌘R)">⟳</button>
-          <button class="icon-btn" id="btn-rollback" title="Rollback… (⌥⌘Z)">↩</button>
+          <button class="icon-btn" id="btn-refresh" title="Refresh File Status">⟳</button>
+          <button class="icon-btn" id="btn-rollback" title="Rollback…">↩</button>
           <button class="icon-btn" id="btn-expand-all" title="Expand All">＋</button>
           <button class="icon-btn" id="btn-collapse-all" title="Collapse All">－</button>
+          <button class="icon-btn" id="btn-keymap" title="Keymap Settings">⌘</button>
         </span>
       </div>
 
@@ -95,6 +96,26 @@
   </div>
 
   <div id="toast"></div>
+
+  <div id="keymap-overlay" class="hidden">
+    <div id="keymap-dialog">
+      <div class="dialog-header">
+        <span>Keymap</span>
+        <span class="dim">Click a shortcut, then press the new key combination</span>
+      </div>
+      <div id="keymap-list"></div>
+      <div class="dialog-note dim">
+        Tree navigation (<kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd>
+        <kbd>Space</kbd> <kbd>⏎</kbd>) is fixed. Recording: press
+        <kbd>Esc</kbd> to cancel.
+      </div>
+      <div class="dialog-footer">
+        <button id="keymap-reset-all">Reset All to Defaults</button>
+        <span class="dialog-spacer"></span>
+        <button id="keymap-done" class="primary">Done</button>
+      </div>
+    </div>
+  </div>
 
   <script src="../node_modules/monaco-editor/min/vs/loader.js"></script>
   <script src="app.js"></script>

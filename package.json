@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "smoke": "DIFFIER_SMOKE=1 electron --no-sandbox .",
-    "test": "node test/git.test.js",
+    "test": "node test/git.test.js && node test/keymap.test.js",
     "dist": "electron-builder --mac"
   },
   "dependencies": {

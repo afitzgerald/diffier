@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const gitlib = require('./git');
+const keymap = require('./keymap');
 
 const SMOKE = process.env.DIFFIER_SMOKE === '1';
 
@@ -129,6 +130,10 @@ handle('git:lastMessage', () => gitlib.lastCommitMessage(requireRepo()));
 handle('file:save', (relPath, content) => gitlib.saveFile(requireRepo(), relPath, content));
 handle('settings:get', () => loadSettings());
 handle('settings:set', (patch) => saveSettings(patch));
+handle('keymap:set', (overrides) => {
+  saveSettings({ keymap: overrides });
+  buildMenu(); // menu accelerators must follow the new bindings
+});
 handle('shell:reveal', (relPath) =>
   shell.showItemInFolder(path.join(requireRepo(), relPath))
 );
@@ -152,6 +157,27 @@ function send(id) {
 
 function buildMenu() {
   const isMac = process.platform === 'darwin';
+  const bindings = keymap.effective(loadSettings().keymap || {});
+
+  // Menu item for a rebindable action. When the binding converts to a menu
+  // accelerator we attach it with registerAccelerator: false — on macOS the
+  // menu consumes the keystroke (the renderer never sees it), on Linux/
+  // Windows the renderer's keydown matcher handles it; exactly one handler
+  // fires either way. Bindings that must stay renderer-only (Escape, bare
+  // printable keys) get a label hint instead of an accelerator.
+  const mi = (id, label) => {
+    const binding = bindings[id];
+    const accelerator = keymap.toAccelerator(binding, process.platform);
+    const item = { label, click: () => send(id) };
+    if (accelerator) {
+      item.accelerator = accelerator;
+      item.registerAccelerator = false;
+    } else if (binding) {
+      item.label = `${label} (${keymap.describe(binding, isMac)})`;
+    }
+    return item;
+  };
+
   const template = [
     ...(isMac
       ? [
@@ -159,6 +185,8 @@ function buildMenu() {
             label: app.name,
             submenu: [
               { role: 'about' },
+              { type: 'separator' },
+              mi('keymap-settings', 'Settings…'),
               { type: 'separator' },
               { role: 'hide' },
               { role: 'hideOthers' },
@@ -172,13 +200,10 @@ function buildMenu() {
     {
       label: 'File',
       submenu: [
-        {
-          label: 'Open Repository…',
-          accelerator: 'CmdOrCtrl+O',
-          click: () => send('open-repo'),
-        },
+        mi('open-repo', 'Open Repository…'),
         { type: 'separator' },
-        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => send('save') },
+        mi('save', 'Save'),
+        ...(isMac ? [] : [{ type: 'separator' }, mi('keymap-settings', 'Keymap Settings…')]),
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' },
       ],
@@ -198,75 +223,32 @@ function buildMenu() {
     {
       label: 'Navigate',
       submenu: [
-        // F7 is handled by the renderer's keydown listener; the accelerator is
-        // display-only where the platform honors registerAccelerator (Linux/
-        // Windows). On macOS the menu consumes the key instead — either way
-        // exactly one handler fires.
-        {
-          label: 'Next Difference',
-          accelerator: 'F7',
-          registerAccelerator: false,
-          click: () => send('next-diff'),
-        },
-        {
-          label: 'Previous Difference',
-          accelerator: 'Shift+F7',
-          registerAccelerator: false,
-          click: () => send('prev-diff'),
-        },
+        mi('next-diff', 'Next Difference'),
+        mi('prev-diff', 'Previous Difference'),
         { type: 'separator' },
-        {
-          label: 'Next Changed File',
-          accelerator: 'CmdOrCtrl+Shift+]',
-          click: () => send('next-file'),
-        },
-        {
-          label: 'Previous Changed File',
-          accelerator: 'CmdOrCtrl+Shift+[',
-          click: () => send('prev-file'),
-        },
+        mi('next-file', 'Next Changed File'),
+        mi('prev-file', 'Previous Changed File'),
         { type: 'separator' },
-        {
-          label: 'Focus Changes Tree',
-          accelerator: 'Escape',
-          // Escape must not be a registered accelerator (it would eat every
-          // Esc press app-wide); the renderer handles it. Menu shows it only.
-          registerAccelerator: false,
-          click: () => send('focus-tree'),
-        },
+        mi('focus-tree', 'Focus Changes Tree'),
       ],
     },
     {
       label: 'Git',
       submenu: [
-        { label: 'Commit…', accelerator: 'CmdOrCtrl+K', click: () => send('commit') },
-        {
-          label: 'Push…',
-          accelerator: 'CmdOrCtrl+Shift+K',
-          click: () => send('push'),
-        },
+        mi('commit', 'Commit…'),
+        mi('commit-execute', 'Commit Checked Files'),
+        mi('commit-and-push', 'Commit and Push'),
+        mi('push', 'Push…'),
         { type: 'separator' },
-        {
-          label: 'Rollback…',
-          accelerator: isMac ? 'Cmd+Alt+Z' : 'Ctrl+Alt+Z',
-          click: () => send('rollback'),
-        },
+        mi('rollback', 'Rollback…'),
         { type: 'separator' },
-        {
-          label: 'Refresh File Status',
-          accelerator: 'CmdOrCtrl+R',
-          click: () => send('refresh'),
-        },
+        mi('refresh', 'Refresh File Status'),
       ],
     },
     {
       label: 'View',
       submenu: [
-        {
-          label: 'Commit Tool Window',
-          accelerator: 'CmdOrCtrl+0',
-          click: () => send('toggle-panel'),
-        },
+        mi('toggle-panel', 'Commit Tool Window'),
         { type: 'separator' },
         { role: 'togglefullscreen' },
         { role: 'toggleDevTools' },
