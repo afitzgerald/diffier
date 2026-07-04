@@ -27,8 +27,19 @@ working-tree changes in any Git repository.
   to pick what goes into the commit and IntelliJ's VCS status colors
   (blue = modified, green = added, red = unversioned, grey = deleted,
   teal = moved).
-- **Side-by-side diff viewer** — Darcula-themed Monaco diff editor with
-  syntax highlighting, HEAD on the left, your working tree on the right.
+- **Wide syntax-highlighting coverage** — Monaco's ~80 built-in grammars
+  plus [shiki](https://shiki.style) TextMate grammars (the ones VS Code
+  uses) for the languages Monaco lacks: Vue, Svelte, Astro, TOML, Makefile,
+  CMake, Groovy, Haskell, Erlang, Zig, Nix, LaTeX, unified diff, Elm,
+  OCaml, Crystal, Nim, Prisma, GLSL, D, Gleam, Odin, PureScript, Ada, asm,
+  awk, Haxe, Common Lisp, and Racket — tokenized with shiki's pure-JS
+  regex engine (no WASM) and colored by the active Diffier theme. Detection
+  also handles well-known filenames (Gemfile, Jenkinsfile, CMakeLists.txt,
+  .gitignore, …) case-insensitively and sniffs `#!` shebangs on
+  extensionless scripts. If the shiki bundle hasn't been built, the app
+  falls back to lightweight built-in grammars for the most common of these.
+- **Side-by-side diff viewer** — Monaco diff editor with HEAD on the left
+  and your working tree on the right.
   The right side is **editable**: type directly in the diff, changes
   autosave when you switch files (⌘S to save explicitly). Per-chunk revert
   arrows in the gutter, unified-view toggle, and an ignore-whitespace
@@ -81,7 +92,7 @@ tooltips. Tree navigation (`↑` `↓` `←` `→` `Space` `⏎`) is fixed.
 ## Running
 
 ```sh
-npm install
+npm install    # also builds the shiki highlighter bundle (postinstall)
 npm start
 ```
 
@@ -102,8 +113,10 @@ npm run dist        # produces dist/Diffier-<version>.dmg and .zip
   a throwaway repository (status parsing for every change type, renames,
   diffs, partial commits, amend, rollback, binary detection, path-escape
   protection) plus unit tests for the keymap module (normalization,
-  accelerator conversion, default-conflict check) and the theme registry
-  (complete/consistent variable sets, valid colors, dark/light sanity).
+  accelerator conversion, default-conflict check), the theme registry
+  (complete/consistent variable sets, valid colors, dark/light sanity),
+  and language detection (grammar shape, extension-collision check,
+  shiki-grammar existence, detection with and without the shiki bundle).
 - `node test/ui.test.js` — end-to-end UI test. The renderer talks to the
   main process only through `window.api`, so the test serves the renderer
   over HTTP with an RPC shim backed by the real Git layer and drives the
@@ -125,6 +138,11 @@ main/
   preload.js   contextBridge API — the renderer has no Node access
 renderer/
   index.html   Layout: commit panel, diff toolbar, Monaco container
-  styles.css   Darcula theme
-  app.js       Tree model, Monaco diff editor, keymap, commit flow
+  styles.css   Themeable styles (CSS variables) + islands/classic layouts
+  app.js       Tree model, Monaco diff editor, keymap, themes, commit flow
+  languages.js Language metadata: detection, aliases, Monarch fallbacks
+  highlighter-entry.mjs
+               Shiki bundle source (esbuild → renderer/highlighter.js on
+               postinstall): TextMate grammars + JS regex engine + monaco
+               wiring via @shikijs/monaco
 ```

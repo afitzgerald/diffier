@@ -9,15 +9,20 @@
   "scripts": {
     "start": "electron .",
     "smoke": "DIFFIER_SMOKE=1 electron --no-sandbox .",
-    "test": "node test/git.test.js && node test/keymap.test.js && node test/themes.test.js",
-    "dist": "electron-builder --mac"
+    "test": "node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js",
+    "build:highlighter": "esbuild renderer/highlighter-entry.mjs --bundle --format=iife --minify --log-level=warning --outfile=renderer/highlighter.js",
+    "postinstall": "npm run build:highlighter || node -e \"console.warn('shiki highlighter bundle skipped; falling back to built-in grammars')\"",
+    "dist": "npm run build:highlighter && electron-builder --mac"
   },
   "dependencies": {
     "monaco-editor": "^0.49.0"
   },
   "devDependencies": {
+    "@shikijs/monaco": "^4.3.1",
     "electron": "^31.3.1",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "esbuild": "^0.28.1",
+    "shiki": "^4.3.1"
   },
   "build": {
     "appId": "com.diffier.app",
@@ -34,7 +39,10 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "darkModeSupport": true
     }
   }
