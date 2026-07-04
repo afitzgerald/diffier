@@ -133,6 +133,7 @@ html, body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  overflow-anchor: none;
   outline: none;
   padding: 4px 0;
 }
