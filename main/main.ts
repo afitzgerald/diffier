@@ -102,6 +102,21 @@ function requireRepo(): string {
   return repoRoot;
 }
 
+function openRecentRepo(dir: string): void {
+  openRepo(dir)
+    .then((repo) => {
+      buildMenu();
+      if (win && !win.isDestroyed()) win.webContents.send('repo:opened', repo);
+    })
+    .catch((err) => {
+      dialog.showMessageBox(win!, {
+        type: 'error',
+        message: 'Could not open repository',
+        detail: err instanceof Error ? err.message : String(err),
+      });
+    });
+}
+
 // --------------------------------------------------------------------- ipc
 
 function handle<T>(channel: string, fn: (...args: any[]) => Promise<T> | T): void {
@@ -251,6 +266,23 @@ function buildMenu(): void {
     return item;
   };
 
+  const recentRepos = settings.recentRepos || [];
+  const recentReposSubmenu: MenuItemConstructorOptions[] = recentRepos.length
+    ? [
+        ...recentRepos.map(
+          (dir): MenuItemConstructorOptions => ({ label: dir, click: () => openRecentRepo(dir) })
+        ),
+        { type: 'separator' },
+        {
+          label: 'Clear Recently Opened',
+          click: () => {
+            saveSettings({ recentRepos: [] });
+            buildMenu();
+          },
+        },
+      ]
+    : [{ label: 'No Recent Repositories', enabled: false }];
+
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
       ? ([
@@ -278,6 +310,7 @@ function buildMenu(): void {
       label: 'File',
       submenu: [
         mi('open-repo', 'Open Repository…'),
+        { label: 'Open Recent', submenu: recentReposSubmenu },
         { type: 'separator' },
         mi('save', 'Save'),
         ...(isMac ? [] : [{ type: 'separator' } as MenuItemConstructorOptions, mi('keymap-settings', 'Settings…')]),
