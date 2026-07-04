@@ -80,8 +80,17 @@ async function openRepo(dir) {
   }
   repoRoot = await gitlib.repoRoot(dir);
   startWatching(repoRoot);
-  saveSettings({ lastRepo: repoRoot });
-  return { root: repoRoot, name: path.basename(repoRoot) };
+  const recents = [
+    repoRoot,
+    ...(loadSettings().recentRepos || []).filter((r) => r !== repoRoot),
+  ].slice(0, 10);
+  saveSettings({ lastRepo: repoRoot, recentRepos: recents });
+  return {
+    root: repoRoot,
+    name: path.basename(repoRoot),
+    isWorktree: await gitlib.isLinkedWorktree(repoRoot),
+    recents,
+  };
 }
 
 function requireRepo() {
@@ -113,6 +122,8 @@ handle('repo:openDialog', async () => {
 handle('repo:open', (dir) => openRepo(dir));
 
 handle('repo:last', async () => {
+  const fromArgv = argvRepo(process.argv);
+  if (fromArgv && (await gitlib.isRepo(fromArgv))) return openRepo(fromArgv);
   const { lastRepo } = loadSettings();
   if (lastRepo && (await gitlib.isRepo(lastRepo))) return openRepo(lastRepo);
   return null;
@@ -122,12 +133,54 @@ handle('git:status', () => gitlib.status(requireRepo()));
 handle('git:diff', (relPath, type, origPath) =>
   gitlib.fileDiff(requireRepo(), relPath, type, origPath)
 );
-handle('git:commit', ({ files, message, amend }) =>
-  gitlib.commit(requireRepo(), files, message, amend)
+handle('git:commit', ({ files, message, amend, partials }) =>
+  gitlib.commit(requireRepo(), files, message, amend, partials || [])
 );
 handle('git:push', () => gitlib.push(requireRepo()));
+handle('git:pull', () => gitlib.pull(requireRepo()));
+handle('git:fetch', () => gitlib.fetch(requireRepo()));
+handle('git:branches', () => gitlib.branches(requireRepo()));
+handle('git:checkout', (name) => gitlib.checkout(requireRepo(), name));
+handle('git:createBranch', (name) => gitlib.createBranch(requireRepo(), name));
+handle('git:log', (opts) => gitlib.log(requireRepo(), opts || {}));
+handle('git:commitDetails', (hash) => gitlib.commitDetails(requireRepo(), hash));
+handle('git:commitFileDiff', (hash, relPath, type, origPath, ref2) =>
+  gitlib.commitFileDiff(requireRepo(), hash, relPath, type, origPath, ref2)
+);
+handle('git:stashList', () => gitlib.stashList(requireRepo()));
+handle('git:stashPush', (message, includeUntracked) =>
+  gitlib.stashPush(requireRepo(), message, includeUntracked)
+);
+handle('git:stashPop', (ref) => gitlib.stashPop(requireRepo(), ref));
+handle('git:stashApply', (ref) => gitlib.stashApply(requireRepo(), ref));
+handle('git:stashDrop', (ref) => gitlib.stashDrop(requireRepo(), ref));
+handle('git:blame', (relPath) => gitlib.blame(requireRepo(), relPath));
+handle('git:conflictInfo', (relPath) => gitlib.conflictInfo(requireRepo(), relPath));
+handle('git:markResolved', (relPath, content) =>
+  gitlib.markResolved(requireRepo(), relPath, content)
+);
 handle('git:rollback', (files) => gitlib.rollback(requireRepo(), files));
 handle('git:lastMessage', () => gitlib.lastCommitMessage(requireRepo()));
+handle('git:commitTemplate', async () => {
+  const root = requireRepo();
+  try {
+    const tpl = (await gitlib.git(root, ['config', '--get', 'commit.template'])).trim();
+    if (!tpl) return '';
+    const abs = tpl.startsWith('~')
+      ? path.join(app.getPath('home'), tpl.slice(1))
+      : path.resolve(root, tpl);
+    return await fsp.readFile(abs, 'utf8');
+  } catch {
+    return '';
+  }
+});
+handle('app:badge', (count) => {
+  try {
+    app.setBadgeCount(Number(count) || 0);
+  } catch {
+    /* unsupported platform */
+  }
+});
 handle('file:save', (relPath, content) => gitlib.saveFile(requireRepo(), relPath, content));
 handle('settings:get', () => loadSettings());
 handle('settings:set', (patch) => {
@@ -195,6 +248,10 @@ function buildMenu() {
               { role: 'about' },
               { type: 'separator' },
               mi('keymap-settings', 'Settings…'),
+              {
+                label: 'Install Command Line Launcher…',
+                click: () => installCliLauncher(),
+              },
               { type: 'separator' },
               { role: 'hide' },
               { role: 'hideOthers' },
@@ -238,6 +295,7 @@ function buildMenu() {
         mi('prev-file', 'Previous Changed File'),
         { type: 'separator' },
         mi('focus-tree', 'Focus Changes Tree'),
+        mi('filter', 'Filter Changes'),
       ],
     },
     {
@@ -246,7 +304,14 @@ function buildMenu() {
         mi('commit', 'Commit…'),
         mi('commit-execute', 'Commit Checked Files'),
         mi('commit-and-push', 'Commit and Push'),
+        mi('commit-history', 'Commit Message History'),
+        { type: 'separator' },
         mi('push', 'Push…'),
+        mi('pull', 'Pull'),
+        mi('fetch', 'Fetch'),
+        { type: 'separator' },
+        mi('branches', 'Branches…'),
+        mi('stash', 'Stash / Unstash…'),
         { type: 'separator' },
         mi('rollback', 'Rollback…'),
         { type: 'separator' },
@@ -257,6 +322,8 @@ function buildMenu() {
       label: 'View',
       submenu: [
         mi('toggle-panel', 'Commit Tool Window'),
+        mi('toggle-log', 'Log Tool Window'),
+        mi('annotate', 'Blame Annotations'),
         {
           label: 'Theme',
           submenu: Object.values(THEMES).map((t) => ({
@@ -277,6 +344,48 @@ function buildMenu() {
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+// --------------------------------------------------------------- cli helper
+
+// `diffier [dir]` from a terminal: a tiny launcher script that re-opens the
+// app pointed at the given (or current) directory.
+async function installCliLauncher() {
+  const script = `#!/bin/sh\nexec open -a "Diffier" --args "\${1:-$PWD}"\n`;
+  const target = '/usr/local/bin/diffier';
+  try {
+    await fsp.writeFile(target, script, { mode: 0o755 });
+    dialog.showMessageBox(win, {
+      type: 'info',
+      message: 'Command line launcher installed',
+      detail: `${target} — run "diffier ." in any repository.`,
+    });
+  } catch (err) {
+    dialog.showMessageBox(win, {
+      type: 'error',
+      message: 'Could not install the launcher',
+      detail:
+        `${err.message}\n\nInstall it manually:\n` +
+        `printf '${script.replace(/\n/g, '\\n')}' | sudo tee ${target} && sudo chmod +x ${target}`,
+    });
+  }
+}
+
+// A directory passed on the command line (e.g. via the `diffier` launcher or
+// `electron . /path/to/repo`) wins over the last-opened repository.
+function argvRepo(argv) {
+  for (const arg of argv.slice(1).reverse()) {
+    if (arg.startsWith('-')) continue;
+    try {
+      const abs = path.resolve(arg);
+      // Skip the app-path argument from `electron .` in development.
+      if (abs === app.getAppPath()) continue;
+      if (fs.statSync(abs).isDirectory()) return abs;
+    } catch {
+      /* not a directory */
+    }
+  }
+  return null;
 }
 
 // ------------------------------------------------------------------ window
@@ -355,6 +464,15 @@ function runSmoke() {
 if (SMOKE) {
   runSmoke();
 } else {
+  // Folders dropped on the dock icon / opened via `open -a Diffier <dir>`.
+  app.on('open-file', (event, p) => {
+    event.preventDefault();
+    openRepo(p)
+      .then((repo) => {
+        if (win && !win.isDestroyed()) win.webContents.send('repo:opened', repo);
+      })
+      .catch(() => {});
+  });
   app.whenReady().then(() => {
     buildMenu();
     createWindow();

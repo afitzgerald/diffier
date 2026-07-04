@@ -2,22 +2,42 @@
 
 const { execFile } = require('child_process');
 const fs = require('fs/promises');
+const os = require('os');
 const path = require('path');
 
 const MAX_BUFFER = 64 * 1024 * 1024;
 const MAX_DIFF_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+
+function gitOpts(cwd, args, opts) {
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      'git',
+      args,
+      { cwd, maxBuffer: MAX_BUFFER, ...opts },
+      (err, stdout, stderr) => {
+        if (err) {
+          const msg = (stderr && stderr.toString().trim()) ||
+            (stdout && stdout.toString().trim()) || err.message;
+          reject(new Error(msg));
+        } else {
+          resolve(stdout);
+        }
+      }
+    );
+    if (opts && opts.stdin != null) {
+      child.stdin.end(opts.stdin);
+    }
+  });
+}
 
 function git(cwd, args) {
-  return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd, maxBuffer: MAX_BUFFER }, (err, stdout, stderr) => {
-      if (err) {
-        const msg = (stderr && stderr.trim()) || (stdout && stdout.trim()) || err.message;
-        reject(new Error(msg));
-      } else {
-        resolve(stdout);
-      }
-    });
-  });
+  return gitOpts(cwd, args, {});
+}
+
+// Binary-safe variant: stdout as a Buffer.
+function gitRaw(cwd, args) {
+  return gitOpts(cwd, args, { encoding: 'buffer' });
 }
 
 async function isRepo(dir) {
@@ -89,6 +109,7 @@ async function status(root) {
     branch: await currentBranch(root),
     hasHead: await hasHead(root),
     files: parseStatusZ(out),
+    track: await aheadBehind(root),
   };
 }
 
@@ -102,17 +123,25 @@ function looksBinary(buf) {
 
 async function headContent(root, relPath) {
   try {
-    return await new Promise((resolve, reject) => {
-      execFile(
-        'git',
-        ['show', `HEAD:${relPath}`],
-        { cwd: root, maxBuffer: MAX_BUFFER, encoding: 'buffer' },
-        (err, stdout) => (err ? reject(err) : resolve(stdout))
-      );
-    });
+    return await gitRaw(root, ['show', `HEAD:${relPath}`]);
   } catch {
     return Buffer.alloc(0);
   }
+}
+
+const IMAGE_MIME = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.ico': 'image/x-icon',
+  '.svg': 'image/svg+xml',
+};
+
+function imageMime(relPath) {
+  return IMAGE_MIME[path.extname(relPath).toLowerCase()] || null;
 }
 
 // HEAD version vs. working-tree version of one file (IntelliJ's default
@@ -138,17 +167,39 @@ async function fileDiff(root, relPath, type, origPath) {
   }
 
   if (looksBinary(origBuf) || looksBinary(modBuf)) {
+    const mime = imageMime(relPath);
+    if (mime && origBuf.length <= MAX_IMAGE_BYTES && modBuf.length <= MAX_IMAGE_BYTES) {
+      return {
+        binary: true,
+        image: true,
+        imageMime: mime,
+        originalImage: origBuf.length ? origBuf.toString('base64') : null,
+        modifiedImage: modBuf.length ? modBuf.toString('base64') : null,
+        original: '',
+        modified: '',
+        absPath: abs,
+      };
+    }
     return { binary: true, original: '', modified: '', absPath: abs };
   }
   if (origBuf.length > MAX_DIFF_BYTES || modBuf.length > MAX_DIFF_BYTES) {
     return { tooLarge: true, binary: false, original: '', modified: '', absPath: abs };
   }
-  return {
+  const result = {
     binary: false,
     original: origBuf.toString('utf8'),
     modified: modBuf.toString('utf8'),
     absPath: abs,
   };
+  // SVGs are text (diffable) but also previewable as images.
+  const mime = imageMime(relPath);
+  if (mime === 'image/svg+xml') {
+    result.image = true;
+    result.imageMime = mime;
+    result.originalImage = origBuf.length ? origBuf.toString('base64') : null;
+    result.modifiedImage = modBuf.length ? modBuf.toString('base64') : null;
+  }
+  return result;
 }
 
 async function saveFile(root, relPath, content) {
@@ -159,9 +210,10 @@ async function saveFile(root, relPath, content) {
   await fs.writeFile(abs, content, 'utf8');
 }
 
-async function commit(root, files, message, amend) {
-  if (!files.length) throw new Error('No files selected for commit');
+async function commit(root, files, message, amend, partials = []) {
+  if (!files.length && !partials.length) throw new Error('No files selected for commit');
   if (!message.trim() && !amend) throw new Error('Commit message is empty');
+  if (partials.length) return commitWithPartials(root, files, partials, message, amend);
   await git(root, ['add', '-A', '--', ...files]);
   // Pathspec-limited commit: only the selected files are committed, even if
   // other changes happen to be staged (e.g. by git mv or a CLI `git add`).
@@ -171,6 +223,71 @@ async function commit(root, files, message, amend) {
   else args.push('--no-edit');
   args.push('--', ...files);
   return git(root, args);
+}
+
+// Commit where some files contribute only a subset of their hunks. The
+// renderer sends, per partial file, the exact content to commit (HEAD content
+// plus the checked hunks). Committing goes through a temporary index so the
+// user's real index and working tree are untouched except for the recorded
+// commit: read HEAD's tree, overlay fully-selected files from the working
+// tree and partial files from the provided content, write the tree, create
+// the commit object, advance HEAD, then sync the real index for the involved
+// paths (the unchecked hunks remain as local modifications).
+async function commitWithPartials(root, fullFiles, partials, message, amend) {
+  const head = await hasHead(root);
+  let msg = message.trim();
+  if (!msg) {
+    if (!amend || !head) throw new Error('Commit message is empty');
+    msg = await lastCommitMessage(root);
+  }
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'diffier-idx-'));
+  const env = { ...process.env, GIT_INDEX_FILE: path.join(tmpDir, 'index') };
+  const gitIdx = (args, opts) => gitOpts(root, args, { env, ...opts });
+  try {
+    await gitIdx(head ? ['read-tree', 'HEAD'] : ['read-tree', '--empty']);
+    if (fullFiles.length) await gitIdx(['add', '-A', '--', ...fullFiles]);
+    for (const p of partials) {
+      const abs = path.join(root, p.path);
+      if (path.relative(root, abs).startsWith('..')) {
+        throw new Error('Path escapes repository root');
+      }
+      const sha = (await gitIdx(['hash-object', '-w', '--stdin'], { stdin: p.content })).trim();
+      let mode = '100644';
+      try {
+        const st = await fs.stat(abs);
+        if (st.mode & 0o111) mode = '100755';
+      } catch {
+        /* keep default mode */
+      }
+      await gitIdx(['update-index', '--add', '--cacheinfo', `${mode},${sha},${p.path}`]);
+    }
+    const tree = (await gitIdx(['write-tree'])).trim();
+
+    let parents = [];
+    if (head) {
+      if (amend) {
+        parents = (await git(root, ['log', '-1', '--pretty=%P'])).trim().split(' ').filter(Boolean);
+      } else {
+        parents = [(await git(root, ['rev-parse', 'HEAD'])).trim()];
+      }
+    }
+    const ctArgs = ['commit-tree', tree];
+    for (const p of parents) ctArgs.push('-p', p);
+    ctArgs.push('-m', msg);
+    const newCommit = (await git(root, ctArgs)).trim();
+    await git(root, [
+      'update-ref', '-m', amend ? 'commit (amend): ' + msg.split('\n')[0] : 'commit: ' + msg.split('\n')[0],
+      'HEAD', newCommit,
+    ]);
+    // Sync the real index to the new HEAD for the committed paths so the
+    // remaining (unchecked) hunks show up as plain unstaged modifications.
+    const touched = [...fullFiles, ...partials.map((p) => p.path)];
+    if (touched.length) await git(root, ['reset', '--quiet', '--', ...touched]).catch(() => {});
+    return newCommit;
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
 }
 
 async function lastCommitMessage(root) {
@@ -205,6 +322,339 @@ async function rollback(root, files) {
   }
 }
 
+// ---------------------------------------------------------------- branches
+
+async function branches(root) {
+  let locals = [];
+  try {
+    const out = await git(root, [
+      'for-each-ref',
+      '--format=%(HEAD)%00%(refname:short)%00%(upstream:short)%00%(upstream:track)%00%(objectname:short)',
+      '--sort=-committerdate',
+      'refs/heads',
+    ]);
+    locals = out
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [head, name, upstream, track, sha] = line.split('\0');
+        return {
+          name,
+          current: head === '*',
+          upstream: upstream || null,
+          track: track || '',
+          sha,
+        };
+      });
+  } catch {
+    /* empty repo */
+  }
+  let remotes = [];
+  try {
+    const out = await git(root, [
+      'for-each-ref',
+      '--format=%(refname:short)',
+      '--sort=-committerdate',
+      'refs/remotes',
+    ]);
+    remotes = out
+      .split('\n')
+      .filter(Boolean)
+      .filter((n) => !n.endsWith('/HEAD'));
+  } catch {
+    /* no remotes */
+  }
+  return { current: await currentBranch(root), locals, remotes };
+}
+
+async function checkout(root, name) {
+  // Plain name checkout DWIMs remote branches into local tracking branches.
+  return git(root, ['checkout', name]);
+}
+
+async function createBranch(root, name, checkoutIt) {
+  if (checkoutIt === false) return git(root, ['branch', '--', name]);
+  return git(root, ['checkout', '-b', name]);
+}
+
+async function pull(root) {
+  return git(root, ['pull']);
+}
+
+async function fetch(root) {
+  return git(root, ['fetch', '--all', '--prune']);
+}
+
+// How far the current branch is from its upstream: { ahead, behind } or null.
+async function aheadBehind(root) {
+  try {
+    const out = await git(root, ['rev-list', '--left-right', '--count', '@{upstream}...HEAD']);
+    const [behind, ahead] = out.trim().split(/\s+/).map(Number);
+    return { ahead, behind };
+  } catch {
+    return null;
+  }
+}
+
+// Linked worktrees have a per-worktree git dir under <main>/.git/worktrees/.
+async function isLinkedWorktree(root) {
+  try {
+    const gitDir = (await git(root, ['rev-parse', '--absolute-git-dir'])).trim();
+    const commonDir = (await git(root, ['rev-parse', '--git-common-dir'])).trim();
+    const absCommon = path.isAbsolute(commonDir) ? commonDir : path.join(root, commonDir);
+    return path.resolve(gitDir) !== path.resolve(absCommon);
+  } catch {
+    return false;
+  }
+}
+
+// --------------------------------------------------------------------- log
+
+const LOG_FIELDS = '%H%x00%h%x00%P%x00%an%x00%ae%x00%at%x00%D%x00%s';
+
+async function log(root, { skip = 0, limit = 200, path: relPath = null } = {}) {
+  const args = [
+    'log',
+    '--date-order',
+    `--skip=${skip}`,
+    `--max-count=${limit}`,
+    `--pretty=format:${LOG_FIELDS}%x01`,
+  ];
+  if (relPath) args.push('--follow', '--', relPath);
+  let out;
+  try {
+    out = await git(root, args);
+  } catch {
+    return []; // empty repository
+  }
+  return out
+    .split('\x01')
+    .map((s) => s.replace(/^\n/, ''))
+    .filter(Boolean)
+    .map((rec) => {
+      const [hash, short, parents, author, email, time, refs, subject] = rec.split('\0');
+      return {
+        hash,
+        short,
+        parents: parents ? parents.split(' ') : [],
+        author,
+        email,
+        time: Number(time) * 1000,
+        refs: refs || '',
+        subject: subject || '',
+      };
+    });
+}
+
+async function commitDetails(root, hash) {
+  const meta = await git(root, [
+    'show', '--no-patch', `--pretty=format:%H%x00%h%x00%P%x00%an%x00%ae%x00%at%x00%B`, hash,
+  ]);
+  const [full, short, parents, author, email, time, body] = meta.split('\0');
+  const parentList = parents ? parents.split(' ').filter(Boolean) : [];
+  // Changed files vs the first parent (or the empty tree for a root commit).
+  const diffArgs = parentList.length
+    ? ['diff-tree', '-r', '-z', '-M', '--name-status', `${hash}^`, hash]
+    : ['diff-tree', '-r', '-z', '-M', '--name-status', '--root', hash];
+  const out = await git(root, diffArgs);
+  const tokens = out.split('\0').filter(Boolean);
+  const files = [];
+  let i = 0;
+  // --root prefixes output with the commit id itself.
+  if (tokens[0] && /^[0-9a-f]{40}$/.test(tokens[0])) i = 1;
+  for (; i < tokens.length; i++) {
+    const status = tokens[i][0];
+    if (status === 'R' || status === 'C') {
+      const origPath = tokens[++i];
+      const p = tokens[++i];
+      files.push({ path: p, origPath, type: 'MOVED' });
+    } else {
+      const p = tokens[++i];
+      const type = status === 'A' ? 'ADDED' : status === 'D' ? 'DELETED' : 'MODIFIED';
+      files.push({ path: p, origPath: null, type });
+    }
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  return {
+    hash: full,
+    short,
+    parents: parentList,
+    author,
+    email,
+    time: Number(time) * 1000,
+    message: (body || '').trimEnd(),
+    files,
+  };
+}
+
+async function showFileAt(root, ref, relPath) {
+  try {
+    return await gitRaw(root, ['show', `${ref}:${relPath}`]);
+  } catch {
+    return Buffer.alloc(0);
+  }
+}
+
+// Diff of one file inside a commit: parent version vs commit version.
+// `ref2` overrides the right side (e.g. 'WORKTREE' compares against disk).
+async function commitFileDiff(root, hash, relPath, type, origPath, ref2) {
+  let origBuf = Buffer.alloc(0);
+  if (type !== 'ADDED') {
+    origBuf = await showFileAt(root, `${hash}^`, origPath || relPath);
+  }
+  let modBuf = Buffer.alloc(0);
+  if (type !== 'DELETED') {
+    if (ref2 === 'WORKTREE') {
+      try {
+        modBuf = await fs.readFile(path.join(root, relPath));
+      } catch {
+        modBuf = Buffer.alloc(0);
+      }
+    } else {
+      modBuf = await showFileAt(root, ref2 || hash, relPath);
+    }
+  }
+  if (looksBinary(origBuf) || looksBinary(modBuf)) {
+    const mime = imageMime(relPath);
+    if (mime && origBuf.length <= MAX_IMAGE_BYTES && modBuf.length <= MAX_IMAGE_BYTES) {
+      return {
+        binary: true,
+        image: true,
+        imageMime: mime,
+        originalImage: origBuf.length ? origBuf.toString('base64') : null,
+        modifiedImage: modBuf.length ? modBuf.toString('base64') : null,
+        original: '',
+        modified: '',
+      };
+    }
+    return { binary: true, original: '', modified: '' };
+  }
+  if (origBuf.length > MAX_DIFF_BYTES || modBuf.length > MAX_DIFF_BYTES) {
+    return { tooLarge: true, binary: false, original: '', modified: '' };
+  }
+  return {
+    binary: false,
+    original: origBuf.toString('utf8'),
+    modified: modBuf.toString('utf8'),
+  };
+}
+
+// ------------------------------------------------------------------- stash
+
+async function stashList(root) {
+  let out;
+  try {
+    out = await git(root, ['stash', 'list', '--pretty=format:%gd%x00%at%x00%gs%x01']);
+  } catch {
+    return [];
+  }
+  return out
+    .split('\x01')
+    .map((t) => t.replace(/^\n/, ''))
+    .filter(Boolean)
+    .map((rec) => {
+      const [ref, time, message] = rec.split('\0');
+      return { ref, time: Number(time) * 1000, message: message || '' };
+    });
+}
+
+async function stashPush(root, message, includeUntracked = true) {
+  const args = ['stash', 'push'];
+  if (includeUntracked) args.push('--include-untracked');
+  if (message && message.trim()) args.push('-m', message.trim());
+  return git(root, args);
+}
+
+async function stashPop(root, ref) {
+  return git(root, ['stash', 'pop', '--index', ref]);
+}
+
+async function stashApply(root, ref) {
+  return git(root, ['stash', 'apply', ref]);
+}
+
+async function stashDrop(root, ref) {
+  return git(root, ['stash', 'drop', ref]);
+}
+
+// ------------------------------------------------------------------- blame
+
+const NULL_SHA = '0000000000000000000000000000000000000000';
+
+async function blame(root, relPath) {
+  const out = await git(root, ['blame', '--line-porcelain', '--', relPath]);
+  const meta = new Map(); // full sha -> { author, time, summary }
+  const lines = [];
+  let sha = null;
+  for (const line of out.split('\n')) {
+    const m = /^([0-9a-f]{40}) \d+ \d+/.exec(line);
+    if (m) {
+      sha = m[1];
+      if (!meta.has(sha)) meta.set(sha, {});
+      continue;
+    }
+    if (sha == null) continue;
+    if (line.startsWith('\t')) {
+      const info = meta.get(sha);
+      lines.push({
+        sha: sha.slice(0, 8),
+        uncommitted: sha === NULL_SHA,
+        author: sha === NULL_SHA ? 'Not committed' : info.author || '',
+        time: info.time || 0,
+        summary: info.summary || '',
+      });
+      continue;
+    }
+    const info = meta.get(sha);
+    if (line.startsWith('author ')) info.author = line.slice(7);
+    else if (line.startsWith('author-time ')) info.time = Number(line.slice(12)) * 1000;
+    else if (line.startsWith('summary ')) info.summary = line.slice(8);
+  }
+  return lines;
+}
+
+// --------------------------------------------------------------- conflicts
+
+// Stage contents for an unmerged path: 1=base, 2=ours, 3=theirs.
+async function conflictInfo(root, relPath) {
+  const stage = async (n) => {
+    try {
+      const buf = await gitRaw(root, ['show', `:${n}:${relPath}`]);
+      return looksBinary(buf) ? null : buf.toString('utf8');
+    } catch {
+      return null;
+    }
+  };
+  const [base, ours, theirs] = await Promise.all([stage(1), stage(2), stage(3)]);
+  let worktree = '';
+  try {
+    worktree = await fs.readFile(path.join(root, relPath), 'utf8');
+  } catch {
+    /* deleted in worktree */
+  }
+  let oursLabel = 'Ours';
+  let theirsLabel = 'Theirs';
+  try {
+    oursLabel = (await git(root, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim() || 'Ours';
+  } catch { /* detached */ }
+  try {
+    const name = (await git(root, [
+      'name-rev', '--name-only', '--exclude', 'tags/*', 'MERGE_HEAD',
+    ])).trim();
+    theirsLabel = name && name !== 'undefined' ? name : 'Theirs';
+  } catch {
+    try {
+      theirsLabel = (await git(root, ['rev-parse', '--short', 'REBASE_HEAD'])).trim() || 'Theirs';
+    } catch { /* not merging/rebasing */ }
+  }
+  return { base, ours, theirs, worktree, oursLabel, theirsLabel };
+}
+
+async function markResolved(root, relPath, content) {
+  if (typeof content === 'string') await saveFile(root, relPath, content);
+  await git(root, ['add', '--', relPath]);
+}
+
 async function push(root) {
   try {
     return await git(root, ['push']);
@@ -231,4 +681,22 @@ module.exports = {
   push,
   hasHead,
   currentBranch,
+  branches,
+  checkout,
+  createBranch,
+  pull,
+  fetch,
+  aheadBehind,
+  isLinkedWorktree,
+  log,
+  commitDetails,
+  commitFileDiff,
+  stashList,
+  stashPush,
+  stashPop,
+  stashApply,
+  stashDrop,
+  blame,
+  conflictInfo,
+  markResolved,
 };
