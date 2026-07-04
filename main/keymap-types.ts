@@ -30,7 +30,8 @@ export type ActionId =
   | 'open-repo'
   | 'refresh'
   | 'toggle-panel'
-  | 'keymap-settings';
+  | 'keymap-settings'
+  | 'about-dialog';
 
 export interface KeymapAction {
   id: ActionId;
@@ -77,4 +78,5 @@ export const ACTIONS: KeymapAction[] = [
   { id: 'refresh', label: 'Refresh File Status', default: 'Mod+R' },
   { id: 'toggle-panel', label: 'Commit Tool Window', default: 'Mod+0' },
   { id: 'keymap-settings', label: 'Settings', default: 'Mod+,' },
+  { id: 'about-dialog', label: 'About Diffier', default: null },
 ];

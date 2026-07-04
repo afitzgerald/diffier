@@ -49,6 +49,7 @@ const api: DiffierApi = {
   gitRollback: (files) => call('git:rollback', files),
   gitLastMessage: () => call('git:lastMessage'),
   setBadge: (count) => call('app:badge', count),
+  getAppInfo: () => call('app:info'),
 
   saveFile: (relPath, content) => call('file:save', relPath, content),
   revealFile: (relPath) => call('shell:reveal', relPath),

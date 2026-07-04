@@ -192,6 +192,7 @@ handle('app:badge', (count: number) => {
     /* unsupported platform */
   }
 });
+handle('app:info', () => ({ name: app.name, version: app.getVersion() }));
 handle('file:save', (relPath: string, content: string) => gitlib.saveFile(requireRepo(), relPath, content));
 handle('settings:get', () => loadSettings());
 handle('settings:set', (patch: Partial<Settings>) => {
@@ -256,7 +257,7 @@ function buildMenu(): void {
           {
             label: app.name,
             submenu: [
-              { role: 'about' },
+              mi('about-dialog', 'About Diffier'),
               { type: 'separator' },
               mi('keymap-settings', 'Settings…'),
               {
@@ -497,16 +498,9 @@ if (SMOKE) {
       .catch(() => {});
   });
   app.whenReady().then(() => {
-    // Packaged mac builds get their dock icon and About panel from the
-    // bundled .icns/Info.plist; in dev (`electron .`) both otherwise fall
-    // back to Electron's own, since role: 'about' reads the running
-    // Electron.app bundle rather than app.getName().
+    // Packaged mac builds get their dock icon from the bundled .icns; in dev
+    // (`electron .`) it otherwise falls back to Electron's own.
     if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(APP_ICON);
-    app.setAboutPanelOptions({
-      applicationName: app.name,
-      applicationVersion: app.getVersion(),
-      iconPath: APP_ICON,
-    });
     buildMenu();
     createWindow();
     app.on('activate', () => {

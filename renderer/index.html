@@ -198,6 +198,22 @@
     </div>
   </div>
 
+  <div id="about-overlay" class="hidden">
+    <div id="about-dialog">
+      <div class="about-icon"><img src="../build/icon.png" alt="Diffier" /></div>
+      <h1 class="about-title">Diffier</h1>
+      <p class="about-tagline">more diff, more better</p>
+      <div class="about-meta dim">
+        <p id="about-version">Version</p>
+        <p>Built with Electron</p>
+      </div>
+      <div class="dialog-footer">
+        <span class="dialog-spacer"></span>
+        <button id="about-done" class="primary">Done</button>
+      </div>
+    </div>
+  </div>
+
   <div id="keymap-overlay" class="hidden">
     <div id="keymap-dialog">
       <div class="dialog-header">
@@ -257,6 +273,7 @@
   <script src="app/log.js"></script>
   <script src="app/actions.js"></script>
   <script src="app/settings-dialog.js"></script>
+  <script src="app/about-dialog.js"></script>
   <script src="app/boot.js"></script>
 </body>
 </html>
