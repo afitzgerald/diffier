@@ -20,11 +20,11 @@ function hunkKey(c) {
 // text diff is currently in the editor.
 function hunkStagingActive() {
   return !!(
-    state.current &&
+    paneMode() === 'worktree' &&
     state.current.type === 'MODIFIED' &&
     !state.current.origPath &&
-    !state.readOnlyDiff &&
-    !state.conflict &&
+    // git forbids per-hunk commits while a merge/cherry-pick concludes.
+    !state.merging &&
     originalModel &&
     modifiedModel &&
     // A diff update for the previous file can fire after state.current moved
@@ -73,13 +73,23 @@ function updateHunkDecorations() {
   );
   if (entry) {
     entry.total = changes.length;
-    entry.content = buildPartialContent(changes, excluded);
-    // Snapshots let doCommit detect that the file changed on disk after the
-    // hunk selection was made (while its diff was not open).
-    entry.snapshotModified = modifiedModel.getValue();
-    entry.snapshotOriginal = originalModel.getValue();
+    // Rebuilding the prepared content walks the whole file, and Monaco
+    // recomputes the diff per keystroke (main thread) — debounce so typing
+    // in a large partially-staged file doesn't churn whole-file strings.
+    clearTimeout(entry.rebuildTimer);
+    entry.rebuildTimer = setTimeout(() => rebuildPartialEntry(p), 250);
   }
   updateCommitCount();
+}
+
+// Prepare (or refresh) the exact content a partial commit would record,
+// plus the snapshots commitWithPartials verifies against at commit time.
+function rebuildPartialEntry(path) {
+  const entry = state.hunks.get(path);
+  if (!entry || !hunkStagingActive() || state.current.path !== path) return;
+  entry.content = buildPartialContent(getLineChanges(), entry.excluded);
+  entry.snapshotModified = modifiedModel.getValue();
+  entry.snapshotOriginal = originalModel.getValue();
 }
 
 function toggleHunk(c) {
@@ -94,6 +104,7 @@ function toggleHunk(c) {
   if (entry.excluded.has(k)) entry.excluded.delete(k);
   else entry.excluded.add(k);
   updateHunkDecorations();
+  rebuildPartialEntry(p); // immediate — a commit may follow right away
 }
 
 // Original content with only the checked hunks applied.
@@ -134,7 +145,16 @@ function commitSelection() {
     const h = state.hunks.get(f.path);
     if (h && h.excluded.size && f.type === 'MODIFIED' && !f.origPath) {
       if (h.excluded.size >= h.total) skipped.push(f.path);
-      else partials.push({ path: f.path, content: h.content });
+      else {
+        partials.push({
+          path: f.path,
+          content: h.content,
+          // The main process refuses the commit if the file or HEAD no
+          // longer matches what the selection was prepared against.
+          expectedWorktree: h.snapshotModified,
+          expectedHead: h.snapshotOriginal,
+        });
+      }
     } else {
       full.push(f);
     }

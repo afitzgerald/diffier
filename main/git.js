@@ -103,13 +103,31 @@ function parseStatusZ(out) {
   return files;
 }
 
+// Parse `--pretty=format:...%x01` output: SOH-terminated records of
+// NUL-separated fields. Newlines between records (git adds one) are part of
+// the previous terminator, not data.
+function parseRecords(out) {
+  return out
+    .split('\x01')
+    .map((rec) => rec.replace(/^\n/, ''))
+    .filter(Boolean)
+    .map((rec) => rec.split('\0'));
+}
+
 async function status(root) {
-  const out = await git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+  const [out, branch, head, track, merging] = await Promise.all([
+    git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']),
+    currentBranch(root),
+    hasHead(root),
+    aheadBehind(root),
+    mergeInProgress(root),
+  ]);
   return {
-    branch: await currentBranch(root),
-    hasHead: await hasHead(root),
+    branch,
+    hasHead: head,
     files: parseStatusZ(out),
-    track: await aheadBehind(root),
+    track,
+    merging,
   };
 }
 
@@ -121,9 +139,10 @@ function looksBinary(buf) {
   return false;
 }
 
-async function headContent(root, relPath) {
+// Blob content at any ref (empty buffer when the path doesn't exist there).
+async function showFileAt(root, ref, relPath) {
   try {
-    return await gitRaw(root, ['show', `HEAD:${relPath}`]);
+    return await gitRaw(root, ['show', `${ref}:${relPath}`]);
   } catch {
     return Buffer.alloc(0);
   }
@@ -170,8 +189,45 @@ function classifyDiff(origBuf, modBuf, relPath) {
     original: origBuf.toString('utf8'),
     modified: modBuf.toString('utf8'),
   };
-  if (mime === 'image/svg+xml') Object.assign(result, imagePayload());
+  // SVGs diff as text; the preview toggle fetches the image payload on
+  // demand via imageData() instead of shipping base64 with every refresh.
+  if (mime === 'image/svg+xml') {
+    result.image = true;
+    result.imageMime = mime;
+  }
   return result;
+}
+
+// On-demand image payloads for the preview toggle. `hash` selects a commit
+// diff (parent vs commit); otherwise HEAD vs worktree.
+async function imageData(root, relPath, type, origPath, hash) {
+  const abs = insideRepo(root, relPath);
+  const mime = imageMime(relPath);
+  if (!mime) throw new Error('Not an image: ' + relPath);
+  let origBuf = Buffer.alloc(0);
+  if (type !== 'ADDED' && type !== 'UNVERSIONED') {
+    origBuf = await showFileAt(root, hash ? `${hash}^` : 'HEAD', origPath || relPath);
+  }
+  let modBuf = Buffer.alloc(0);
+  if (type !== 'DELETED') {
+    if (hash) {
+      modBuf = await showFileAt(root, hash, relPath);
+    } else {
+      try {
+        modBuf = await fs.readFile(abs);
+      } catch {
+        /* deleted from worktree */
+      }
+    }
+  }
+  if (origBuf.length > MAX_IMAGE_BYTES || modBuf.length > MAX_IMAGE_BYTES) {
+    throw new Error('Image is too large to preview');
+  }
+  return {
+    imageMime: mime,
+    originalImage: origBuf.length ? origBuf.toString('base64') : null,
+    modifiedImage: modBuf.length ? modBuf.toString('base64') : null,
+  };
 }
 
 // HEAD version vs. working-tree version of one file (IntelliJ's default
@@ -184,7 +240,7 @@ async function fileDiff(root, relPath, type, origPath) {
 
   let origBuf = Buffer.alloc(0);
   if (type !== 'ADDED' && type !== 'UNVERSIONED') {
-    origBuf = await headContent(root, origPath || relPath);
+    origBuf = await showFileAt(root, 'HEAD', origPath || relPath);
   }
 
   let modBuf = Buffer.alloc(0);
@@ -212,13 +268,18 @@ async function saveFile(root, relPath, content) {
   await fs.writeFile(insideRepo(root, relPath), content, 'utf8');
 }
 
+// Merge, cherry-pick, or revert concluding: git forbids pathspec-limited
+// commits during all three ("cannot do a partial commit during a ...").
 async function mergeInProgress(root) {
-  try {
-    await git(root, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD']);
-    return true;
-  } catch {
-    return false;
-  }
+  const present = await Promise.all(
+    ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD'].map((ref) =>
+      git(root, ['rev-parse', '--verify', '--quiet', ref]).then(
+        () => true,
+        () => false
+      )
+    )
+  );
+  return present.some(Boolean);
 }
 
 async function commit(root, files, message, amend, partials = []) {
@@ -268,6 +329,26 @@ async function commitWithPartials(root, fullFiles, partials, message, amend) {
     if (fullFiles.length) await gitIdx(['add', '-A', '--', ...fullFiles]);
     for (const p of partials) {
       const abs = insideRepo(root, p.path);
+      // The hunk selection was prepared against a snapshot of the file and
+      // of HEAD. Verify both here, where the commit is recorded, so no
+      // renderer-side race can commit stale prepared content.
+      if (typeof p.expectedWorktree === 'string') {
+        let cur = '';
+        try {
+          cur = await fs.readFile(abs, 'utf8');
+        } catch {
+          /* treated as mismatch below */
+        }
+        if (cur !== p.expectedWorktree) {
+          throw new Error(`${p.path} changed on disk since its hunks were selected — reopen it and reselect`);
+        }
+      }
+      if (typeof p.expectedHead === 'string') {
+        const headNow = (await showFileAt(root, 'HEAD', p.path)).toString('utf8');
+        if (headNow !== p.expectedHead) {
+          throw new Error(`${p.path} changed in HEAD since its hunks were selected — reopen it and reselect`);
+        }
+      }
       // --path applies .gitattributes filters (eol normalization, clean
       // filters such as LFS) exactly as `git add` would.
       const sha = (
@@ -353,46 +434,40 @@ async function rollback(root, files) {
 // ---------------------------------------------------------------- branches
 
 async function branches(root) {
-  let locals = [];
+  const locals = [];
+  const remotes = [];
   try {
+    // One subprocess for both namespaces; %(HEAD) marks the current branch.
     const out = await git(root, [
       'for-each-ref',
-      '--format=%(HEAD)%00%(refname:short)%00%(upstream:short)%00%(upstream:track)%00%(objectname:short)',
+      '--format=%(HEAD)%00%(refname)%00%(refname:short)%00%(upstream:short)%00%(upstream:track)%00%(objectname:short)%01',
       '--sort=-committerdate',
       'refs/heads',
+      'refs/remotes',
     ]);
-    locals = out
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => {
-        const [head, name, upstream, track, sha] = line.split('\0');
-        return {
+    for (const [head, ref, name, upstream, track, sha] of parseRecords(out)) {
+      if (ref.startsWith('refs/heads/')) {
+        locals.push({
           name,
           current: head === '*',
           upstream: upstream || null,
           track: track || '',
           sha,
-        };
-      });
+        });
+      } else if (!ref.endsWith('/HEAD')) {
+        remotes.push(name);
+      }
+    }
   } catch {
     /* empty repo */
   }
-  let remotes = [];
-  try {
-    const out = await git(root, [
-      'for-each-ref',
-      '--format=%(refname:short)',
-      '--sort=-committerdate',
-      'refs/remotes',
-    ]);
-    remotes = out
-      .split('\n')
-      .filter(Boolean)
-      .filter((n) => !n.endsWith('/HEAD'));
-  } catch {
-    /* no remotes */
-  }
-  return { current: await currentBranch(root), locals, remotes };
+  const cur = locals.find((b) => b.current);
+  return {
+    // Detached HEAD / empty repo has no %(HEAD)-marked branch — fall back.
+    current: cur ? cur.name : await currentBranch(root),
+    locals,
+    remotes,
+  };
 }
 
 async function checkout(root, name) {
@@ -400,8 +475,7 @@ async function checkout(root, name) {
   return git(root, ['checkout', name]);
 }
 
-async function createBranch(root, name, checkoutIt) {
-  if (checkoutIt === false) return git(root, ['branch', '--', name]);
+async function createBranch(root, name) {
   return git(root, ['checkout', '-b', name]);
 }
 
@@ -455,23 +529,16 @@ async function log(root, { skip = 0, limit = 200, path: relPath = null } = {}) {
   } catch {
     return []; // empty repository
   }
-  return out
-    .split('\x01')
-    .map((s) => s.replace(/^\n/, ''))
-    .filter(Boolean)
-    .map((rec) => {
-      const [hash, short, parents, author, email, time, refs, subject] = rec.split('\0');
-      return {
-        hash,
-        short,
-        parents: parents ? parents.split(' ') : [],
-        author,
-        email,
-        time: Number(time) * 1000,
-        refs: refs || '',
-        subject: subject || '',
-      };
-    });
+  return parseRecords(out).map(([hash, short, parents, author, email, time, refs, subject]) => ({
+    hash,
+    short,
+    parents: parents ? parents.split(' ') : [],
+    author,
+    email,
+    time: Number(time) * 1000,
+    refs: refs || '',
+    subject: subject || '',
+  }));
 }
 
 async function commitDetails(root, hash) {
@@ -515,14 +582,6 @@ async function commitDetails(root, hash) {
   };
 }
 
-async function showFileAt(root, ref, relPath) {
-  try {
-    return await gitRaw(root, ['show', `${ref}:${relPath}`]);
-  } catch {
-    return Buffer.alloc(0);
-  }
-}
-
 // Diff of one file inside a commit: parent version vs commit version.
 // `ref2` overrides the right side (e.g. 'WORKTREE' compares against disk).
 async function commitFileDiff(root, hash, relPath, type, origPath, ref2) {
@@ -555,14 +614,11 @@ async function stashList(root) {
   } catch {
     return [];
   }
-  return out
-    .split('\x01')
-    .map((t) => t.replace(/^\n/, ''))
-    .filter(Boolean)
-    .map((rec) => {
-      const [ref, time, message] = rec.split('\0');
-      return { ref, time: Number(time) * 1000, message: message || '' };
-    });
+  return parseRecords(out).map(([ref, time, message]) => ({
+    ref,
+    time: Number(time) * 1000,
+    message: message || '',
+  }));
 }
 
 async function stashPush(root, message, includeUntracked = true) {
@@ -641,11 +697,10 @@ async function conflictInfo(root, relPath) {
   } catch {
     /* deleted in worktree */
   }
-  let oursLabel = 'Ours';
+  // currentBranch already handles detached HEAD ("<sha> (detached)") and
+  // matches what the status bar shows.
+  const oursLabel = await currentBranch(root);
   let theirsLabel = 'Theirs';
-  try {
-    oursLabel = (await git(root, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim() || 'Ours';
-  } catch { /* detached */ }
   if (await mergeInProgress(root)) {
     try {
       const name = (await git(root, [
@@ -717,4 +772,6 @@ module.exports = {
   blame,
   conflictInfo,
   markResolved,
+  imageData,
+  parseRecords,
 };

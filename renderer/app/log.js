@@ -27,34 +27,51 @@ function setView(view) {
   }
 }
 
+// Reset the log model (entries, lane state, selection) for a fresh load.
+// `filePath` non-null enters file-history mode.
+function resetLog(filePath) {
+  state.log.gen = (state.log.gen || 0) + 1; // discard in-flight page loads
+  state.log.entries = [];
+  state.log.graphLanes = [];
+  state.log.done = false;
+  state.log.loading = false;
+  state.log.selected = null;
+  state.log.filePath = filePath || null;
+  $('log-details').classList.add('hidden');
+}
+
 async function loadLog(reset) {
-  if (!state.repo || state.log.loading) return;
-  if (reset) {
-    state.log.entries = [];
-    state.log.skip = 0;
-    state.log.done = false;
-    state.log.selected = null;
-    state.log.details = null;
-    $('log-details').classList.add('hidden');
-  }
+  if (!state.repo) return;
+  if (!reset && state.log.loading) return;
+  if (reset) resetLog(state.log.filePath);
+  const gen = state.log.gen || 0;
   state.log.loading = true;
+  if (reset) renderLog();
   try {
     const batch = await window.api.gitLog({
-      skip: state.log.skip,
+      skip: state.log.entries.length,
       limit: LOG_PAGE,
       path: state.log.filePath,
     });
-    state.log.entries.push(...batch);
-    state.log.skip += batch.length;
+    if (gen !== (state.log.gen || 0)) return; // superseded by a reset
     if (batch.length < LOG_PAGE) state.log.done = true;
     // A followed file history is a sparse slice of the DAG — parents mostly
     // aren't in the list, so lanes would never close. Skip the graph there.
-    if (!state.log.filePath) computeLogGraph(state.log.entries);
-    renderLog();
+    // The layout is a pure left-to-right fold, so pages resume from the
+    // saved lane state instead of recomputing all prior entries.
+    if (!state.log.filePath) {
+      state.log.graphLanes = computeLogGraph(batch, state.log.graphLanes);
+    }
+    state.log.entries.push(...batch);
+    if (reset) renderLog();
+    else appendLogRows(batch);
   } catch (err) {
     toast('git log failed: ' + err.message, true);
   } finally {
-    state.log.loading = false;
+    if (gen === (state.log.gen || 0)) {
+      state.log.loading = false;
+      syncMoreRow();
+    }
   }
 }
 
@@ -62,8 +79,8 @@ async function loadLog(reset) {
 // next. A commit takes over the lane expecting it (or a free one), its first
 // parent continues the lane, other lanes expecting it merge in, extra parents
 // fork out to new lanes.
-function computeLogGraph(entries) {
-  let lanes = [];
+function computeLogGraph(entries, lanes = []) {
+  lanes = lanes.slice();
   for (const c of entries) {
     const before = lanes.slice();
     let col = lanes.indexOf(c.hash);
@@ -103,6 +120,7 @@ function computeLogGraph(entries) {
     while (lanes.length && lanes[lanes.length - 1] === null) lanes.pop();
     c.graph = { col, before, after: lanes.slice(), merging, forks };
   }
+  return lanes;
 }
 
 function laneColor(i) {
@@ -147,6 +165,73 @@ function relTime(ts) {
   return new Date(ts).toISOString().slice(0, 10);
 }
 
+function buildLogRow(c) {
+  const row = document.createElement('div');
+  row.className = 'log-row';
+  row.dataset.hash = c.hash;
+  if (c.hash === state.log.selected) row.classList.add('selected');
+
+  if (!state.log.filePath && c.graph) {
+    const graph = document.createElement('span');
+    graph.innerHTML = logGraphSvg(c);
+    row.appendChild(graph.firstChild);
+  }
+
+  for (const ref of parseRefs(c.refs)) {
+    const chip = document.createElement('span');
+    chip.className = 'log-ref' + (ref.head ? ' head' : '');
+    chip.textContent = ref.name;
+    chip.title = ref.name;
+    row.appendChild(chip);
+  }
+
+  const subject = document.createElement('span');
+  subject.className = 'log-subject';
+  subject.textContent = c.subject;
+  subject.title = c.subject;
+  row.appendChild(subject);
+
+  const author = document.createElement('span');
+  author.className = 'log-author dim';
+  author.textContent = c.author;
+  row.appendChild(author);
+
+  const date = document.createElement('span');
+  date.className = 'log-date dim';
+  date.textContent = relTime(c.time);
+  date.title = new Date(c.time).toLocaleString();
+  row.appendChild(date);
+
+  row.addEventListener('click', () => selectLogEntry(c));
+  return row;
+}
+
+// Keep exactly one trailing "Load more" row, reflecting done/loading state.
+function syncMoreRow() {
+  const list = $('log-list');
+  const existing = list.querySelector('.log-more');
+  if (existing) existing.remove();
+  if (state.log.done) return;
+  const more = document.createElement('div');
+  more.className = 'log-more';
+  more.textContent = state.log.loading ? 'Loading…' : 'Load more…';
+  more.addEventListener('click', () => loadLog(false));
+  list.appendChild(more);
+}
+
+// Append rows for one page without rebuilding earlier rows (the list is
+// append-only between resets).
+function appendLogRows(batch) {
+  const list = $('log-list');
+  const frag = document.createDocumentFragment();
+  for (const c of batch) frag.appendChild(buildLogRow(c));
+  const more = list.querySelector('.log-more');
+  if (more) more.remove();
+  list.appendChild(frag);
+  syncMoreRow();
+}
+
+// Full rebuild â used on reset; pagination goes through appendLogRows.
 function renderLog() {
   const list = $('log-list');
   list.textContent = '';
@@ -163,54 +248,7 @@ function renderLog() {
     return;
   }
 
-  for (const c of state.log.entries) {
-    const row = document.createElement('div');
-    row.className = 'log-row';
-    row.dataset.hash = c.hash;
-    if (c.hash === state.log.selected) row.classList.add('selected');
-
-    if (!state.log.filePath && c.graph) {
-      const graph = document.createElement('span');
-      graph.innerHTML = logGraphSvg(c);
-      row.appendChild(graph.firstChild);
-    }
-
-    for (const ref of parseRefs(c.refs)) {
-      const chip = document.createElement('span');
-      chip.className = 'log-ref' + (ref.head ? ' head' : '');
-      chip.textContent = ref.name;
-      chip.title = ref.name;
-      row.appendChild(chip);
-    }
-
-    const subject = document.createElement('span');
-    subject.className = 'log-subject';
-    subject.textContent = c.subject;
-    subject.title = c.subject;
-    row.appendChild(subject);
-
-    const author = document.createElement('span');
-    author.className = 'log-author dim';
-    author.textContent = c.author;
-    row.appendChild(author);
-
-    const date = document.createElement('span');
-    date.className = 'log-date dim';
-    date.textContent = relTime(c.time);
-    date.title = new Date(c.time).toLocaleString();
-    row.appendChild(date);
-
-    row.addEventListener('click', () => selectLogEntry(c));
-    list.appendChild(row);
-  }
-
-  if (!state.log.done) {
-    const more = document.createElement('div');
-    more.className = 'log-more';
-    more.textContent = state.log.loading ? 'Loading…' : 'Load more…';
-    more.addEventListener('click', () => loadLog(false));
-    list.appendChild(more);
-  }
+  appendLogRows(state.log.entries);
 }
 
 function parseRefs(refs) {
@@ -239,7 +277,6 @@ async function selectLogEntry(c) {
     return;
   }
   if (state.log.selected !== c.hash) return;
-  state.log.details = det;
   renderLogDetails(det);
   // In file-history mode jump straight to this file's diff at that commit.
   // Older commits may know the file under a pre-rename path — only auto-open
@@ -266,16 +303,7 @@ function renderLogDetails(det) {
     row.className = 'tree-row';
     row.style.paddingLeft = '8px';
 
-    const icon = document.createElement('span');
-    icon.className = 'tree-icon file-name ' + f.type;
-    icon.textContent = TYPE_ICON[f.type] || '●';
-    row.appendChild(icon);
-
-    const name = document.createElement('span');
-    name.className = 'file-name ' + f.type;
-    name.textContent = f.path;
-    name.title = f.origPath ? `${f.origPath} → ${f.path}` : f.path;
-    row.appendChild(name);
+    appendFileLabel(row, f, { fullPath: true });
 
     row.addEventListener('click', () => {
       for (const el of filesEl.querySelectorAll('.tree-row')) el.classList.remove('selected');

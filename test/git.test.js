@@ -205,6 +205,22 @@ async function main() {
     'amend must not rewrite author identity or date'
   );
 
+  // A partial commit whose snapshots no longer match reality is refused.
+  fs.writeFileSync(path.join(tmp, 'src/app.js'), 'fresh content\n');
+  await assert.rejects(
+    () =>
+      gitlib.commit(tmp, [], 'stale partial', false, [
+        {
+          path: 'src/app.js',
+          content: 'prepared from old state\n',
+          expectedWorktree: 'what the renderer saw\n', // != fresh content
+          expectedHead: run('show', 'HEAD:src/app.js'),
+        },
+      ]),
+    /changed on disk/
+  );
+  run('checkout', '--', 'src/app.js');
+
   // ----------------------------------------------------------------- stash
   fs.writeFileSync(path.join(tmp, 'src/app.js'), 'stashed change\n');
   fs.writeFileSync(path.join(tmp, 'wip.txt'), 'wip\n');
@@ -275,6 +291,25 @@ async function main() {
     (await gitlib.log(tmp, { limit: 1 }))[0].hash
   );
   assert.strictEqual(mergeDet.parents.length, 2, 'merge commit has two parents');
+
+  // Cherry-pick conflicts hit the same pathspec restriction as merges: the
+  // resolve → commit flow must fall back to a whole-index commit there too.
+  run('checkout', '-b', 'pick-source');
+  fs.writeFileSync(path.join(tmp, 'src/app.js'), 'PICKED\n');
+  run('commit', '-am', 'pick me');
+  run('checkout', 'main');
+  fs.writeFileSync(path.join(tmp, 'src/app.js'), 'DIVERGED\n');
+  run('commit', '-am', 'diverge');
+  try {
+    run('cherry-pick', 'pick-source');
+  } catch {
+    /* conflict expected */
+  }
+  assert.ok((await gitlib.status(tmp)).merging, 'cherry-pick counts as merge-like state');
+  await gitlib.markResolved(tmp, 'src/app.js', 'PICK-RESOLVED\n');
+  await gitlib.commit(tmp, ['src/app.js'], 'cherry-pick resolved', false);
+  assert.strictEqual((await gitlib.lastCommitMessage(tmp)).trim(), 'cherry-pick resolved');
+  assert.ok(!(await gitlib.status(tmp)).merging, 'sequencer state cleared by commit');
 
   // path escape protection on the new entry points
   await assert.rejects(() => gitlib.markResolved(tmp, '../oops.txt', 'x'));

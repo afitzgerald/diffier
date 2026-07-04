@@ -10,6 +10,7 @@
 
 async function refreshStatus(keepDiff) {
   if (!state.repo) return;
+  const root = state.repo.root;
   let st;
   try {
     st = await window.api.gitStatus();
@@ -17,15 +18,24 @@ async function refreshStatus(keepDiff) {
     toast('git status failed: ' + err.message, true);
     return;
   }
-  state.branch = st.branch;
-  state.track = st.track;
+  // The user may have switched repositories while the status was in flight.
+  if (!state.repo || state.repo.root !== root) return;
   state.files = st.files;
+  const wasMerging = state.merging;
+  state.merging = !!st.merging;
   $('status-branch').textContent = st.branch;
   $('status-track').textContent = st.track
     ? [st.track.ahead ? `↑${st.track.ahead}` : '', st.track.behind ? `↓${st.track.behind}` : '']
         .filter(Boolean)
         .join(' ')
     : '';
+  // During a merge, git refuses pathspec-limited and per-hunk commits — the
+  // whole staged index is committed. Surface the mode instead of failing at
+  // commit time.
+  if (state.merging !== wasMerging) {
+    statusMsg(state.merging ? 'Merge in progress — commit records all staged changes' : '');
+    updateHunkDecorations();
+  }
 
   if (window.api.setBadge) {
     Promise.resolve(window.api.setBadge(st.files.length)).catch(() => {});
@@ -100,7 +110,7 @@ async function setRepo(repo) {
   state.filter = '';
   $('tree-filter').value = '';
   $('tree-filter-clear').classList.add('hidden');
-  state.log = { entries: [], skip: 0, done: false, loading: false, selected: null, details: null, filePath: null };
+  resetLog(null);
   clearDiffView();
   $('titlebar-repo').textContent = repo.name;
   $('titlebar-worktree').classList.toggle('hidden', !repo.isWorktree);
