@@ -76,6 +76,23 @@ const TYPE_ICON = {
   MOVED: '➜',
 };
 
+// Append the colored type icon + name for a changed file to a row element â
+// the one place the icon/label/rename-arrow presentation lives (used by the
+// changes tree and the Log tab's file list).
+function appendFileLabel(row, file, { fullPath } = {}) {
+  const icon = document.createElement('span');
+  icon.className = 'tree-icon file-name ' + file.type;
+  icon.textContent = TYPE_ICON[file.type] || '●';
+  row.appendChild(icon);
+
+  const name = document.createElement('span');
+  name.className = 'file-name ' + file.type;
+  name.textContent = fullPath ? file.path : file.path.split('/').pop();
+  name.title = file.origPath ? `${file.origPath} → ${file.path}` : file.path;
+  row.appendChild(name);
+  return name;
+}
+
 // Files surviving the filter box (checkbox state always tracks all files).
 function visibleFiles() {
   if (!state.filter) return state.files;
@@ -145,18 +162,7 @@ function buildRowEl(row) {
     });
     el.appendChild(cb);
 
-    const icon = document.createElement('span');
-    icon.className = 'tree-icon file-name ' + row.file.type;
-    icon.textContent = TYPE_ICON[row.file.type] || '●';
-    el.appendChild(icon);
-
-    const name = document.createElement('span');
-    name.className = 'file-name ' + row.file.type;
-    name.textContent = row.file.path.split('/').pop();
-    name.title = row.file.origPath
-      ? `${row.file.origPath} → ${row.file.path}`
-      : row.file.path;
-    el.appendChild(name);
+    appendFileLabel(el, row.file);
 
     const partial = state.hunks.get(row.file.path);
     if (partial && partial.excluded.size) {

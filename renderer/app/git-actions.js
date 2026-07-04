@@ -26,23 +26,15 @@ async function doCommit(alsoPush) {
     toast(`Resolve conflicts before committing: ${conflicted[0].path}`, true);
     return;
   }
-  // A hunk selection was computed against the file content at the time its
-  // diff was open. If the file (or HEAD) changed since, the prepared partial
-  // content would silently commit stale text — verify before committing.
-  for (const p of partials) {
-    const entry = state.hunks.get(p.path);
-    if (!entry || entry.snapshotModified == null) continue;
-    try {
-      const d = await window.api.gitDiff(p.path, 'MODIFIED', null);
-      if (d.modified !== entry.snapshotModified || d.original !== entry.snapshotOriginal) {
-        state.hunks.delete(p.path);
-        updateCommitCount();
-        toast(`${p.path} changed since its hunks were selected — reopen it and reselect`, true);
-        return;
-      }
-    } catch {
-      /* diff unavailable — let the commit surface the error */
-    }
+  // Concluding a merge commits the whole staged index (git forbids pathspec
+  // commits there) — be honest about it when files are left unchecked.
+  if (state.merging && state.checked.size < state.files.length) {
+    const ok = await window.api.confirm({
+      message: 'Concluding a merge commits all staged changes',
+      detail: 'Git does not allow file-limited commits while a merge is in progress; unchecked files that are staged will be included.',
+      confirmLabel: 'Commit All Staged',
+    });
+    if (!ok) return;
   }
   // The commit message template is boilerplate, not a message.
   const effectiveMsg = message.trim() === state.commitTemplate.trim() ? '' : message;

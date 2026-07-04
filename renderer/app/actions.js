@@ -19,12 +19,19 @@ const ACTION_IMPL = {
     treeEl.focus();
   },
   commit: () => {
+    $('commit-panel').classList.remove('hidden');
     setView('commit');
     $('commit-message').focus();
   },
   'commit-execute': () => doCommit(false),
   'commit-and-push': () => doCommit(true),
-  'commit-history': () => toggleMsgHistory(),
+  'commit-history': () => {
+    // The popup anchors to the commit message box — make sure it's visible,
+    // or an invisible popup would swallow every shortcut until Escape.
+    $('commit-panel').classList.remove('hidden');
+    setView('commit');
+    toggleMsgHistory();
+  },
   push: () => doPush(),
   pull: () => doPull(),
   fetch: () => doFetch(),

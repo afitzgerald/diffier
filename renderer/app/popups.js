@@ -9,14 +9,21 @@
 // ------------------------------------------------------------------ popups
 
 const POPUP_IDS = ['branch-popup', 'msg-history-popup', 'repo-popup', 'context-menu'];
-// A popup's own anchor button must not close it on mousedown — otherwise the
-// button's click handler sees a closed popup and immediately reopens it,
-// making toggle-off impossible.
-const POPUP_ANCHORS = {
-  'branch-popup': 'status-branch',
-  'msg-history-popup': 'btn-msg-history',
-  'repo-popup': 'titlebar-repo',
-};
+// popupId -> anchorId, filled by registerPopup(). A popup's own anchor must
+// not close it on mousedown — otherwise the anchor's click handler sees a
+// closed popup and immediately reopens it, making toggle-off impossible.
+const POPUP_ANCHORS = {};
+
+// Wire an anchored popup: the anchor click toggles it, and the global
+// mousedown-closer leaves the anchor alone so the toggle actually closes.
+// Every anchored popup must go through this — never hand-wire the toggle.
+function registerPopup(popupId, anchorId, openFn) {
+  POPUP_ANCHORS[popupId] = anchorId;
+  $(anchorId).addEventListener('click', () => {
+    if ($(popupId).classList.contains('hidden')) openFn();
+    else closePopups();
+  });
+}
 
 function closePopups() {
   for (const id of POPUP_IDS) $(id).classList.add('hidden');
@@ -209,10 +216,7 @@ $('branch-filter').addEventListener('keydown', (e) => {
     treeEl.focus();
   }
 });
-$('status-branch').addEventListener('click', () => {
-  if ($('branch-popup').classList.contains('hidden')) openBranchPopup();
-  else closePopups();
-});
+registerPopup('branch-popup', 'status-branch', openBranchPopup);
 
 // ----------------------------------------------------- commit msg history
 
@@ -227,16 +231,15 @@ function openMsgHistory() {
     list.appendChild(empty);
   }
   for (const msg of history) {
-    const item = document.createElement('div');
-    item.className = 'msg-history-item';
-    item.textContent = msg.length > 300 ? msg.slice(0, 300) + '…' : msg;
-    item.title = msg;
-    item.addEventListener('click', () => {
-      closePopups();
-      $('commit-message').value = msg;
-      updateSubjectLength();
-      $('commit-message').focus();
+    const item = popupItem(msg.length > 300 ? msg.slice(0, 300) + '…' : msg, {
+      title: msg,
+      onClick: () => {
+        $('commit-message').value = msg;
+        updateSubjectLength();
+        $('commit-message').focus();
+      },
     });
+    item.classList.add('msg-history-item');
     list.appendChild(item);
   }
   positionPopup($('msg-history-popup'), { anchor: $('commit-message'), align: 'above-left' });
@@ -246,6 +249,7 @@ function toggleMsgHistory() {
   if ($('msg-history-popup').classList.contains('hidden')) openMsgHistory();
   else closePopups();
 }
+registerPopup('msg-history-popup', 'btn-msg-history', openMsgHistory);
 
 function updateSubjectLength() {
   const subject = ($('commit-message').value.split('\n')[0] || '').length;
@@ -257,7 +261,6 @@ function updateSubjectLength() {
 }
 
 $('commit-message').addEventListener('input', updateSubjectLength);
-$('btn-msg-history').addEventListener('click', toggleMsgHistory);
 
 // ------------------------------------------------------------ repo popup
 
@@ -292,10 +295,7 @@ function openRepoPopup() {
   positionPopup($('repo-popup'), { anchor: $('titlebar-repo'), align: 'below' });
 }
 
-$('titlebar-repo').addEventListener('click', () => {
-  if ($('repo-popup').classList.contains('hidden')) openRepoPopup();
-  else closePopups();
-});
+registerPopup('repo-popup', 'titlebar-repo', openRepoPopup);
 
 // ------------------------------------------------------------ context menu
 

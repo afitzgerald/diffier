@@ -27,7 +27,6 @@ function setDiffHeader(file, extra) {
 }
 
 function showImageDiff(diff) {
-  state.imageDiff = diff;
   const set = (imgId, missId, capId, b64) => {
     const img = $(imgId);
     if (b64) {
@@ -92,9 +91,14 @@ function presentDiff(diff, file, { readOnly, revealEnd, trackPath }) {
   diffEditor.setModel({ original: originalModel, modified: modifiedModel });
   diffEditor.updateOptions({ readOnly });
 
-  // Text file with an image preview available (SVG).
+  // Text file with an image preview available (SVG). The base64 payload is
+  // fetched on demand when the preview toggle is first used.
   if (diff.image) {
-    state.imageDiff = diff;
+    state.imageDiff = {
+      file,
+      hash: state.readOnlyDiff ? state.readOnlyDiff.hash : null,
+      payload: diff.originalImage !== undefined ? diff : null,
+    };
     $('btn-image-view').classList.remove('hidden');
   }
 
@@ -157,7 +161,7 @@ async function openCommitFileDiff(commit, file) {
   await autosaveIfDirty();
 
   state.current = null;
-  state.readOnlyDiff = { hash: commit.hash, short: commit.short, path: file.path };
+  state.readOnlyDiff = { hash: commit.hash, path: file.path };
   resetDiffPane();
   setDiffHeader(file, ` @ ${commit.short}`);
 

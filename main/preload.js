@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('api', {
   gitCommitDetails: (hash) => call('git:commitDetails', hash),
   gitCommitFileDiff: (hash, relPath, type, origPath, ref2) =>
     call('git:commitFileDiff', hash, relPath, type, origPath, ref2),
+  gitImageData: (relPath, type, origPath, hash) =>
+    call('git:imageData', relPath, type, origPath, hash),
   gitStashList: () => call('git:stashList'),
   gitStashPush: (message, includeUntracked) => call('git:stashPush', message, includeUntracked),
   gitStashPop: (ref) => call('git:stashPop', ref),

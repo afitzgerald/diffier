@@ -8,37 +8,45 @@
 
 const state = {
   repo: null,            // { root, name, isWorktree, recents }
-  branch: '',
-  track: null,           // { ahead, behind } vs upstream, or null
+  merging: false,        // a merge is in progress (MERGE_HEAD exists)
   files: [],             // [{ path, origPath, type }]
   checked: new Set(),    // paths checked for commit
   known: new Set(),      // paths ever seen (new files default to checked)
   collapsed: new Set(),  // collapsed directory keys
   rows: [],              // flattened visible rows for keyboard navigation
   selectedKey: null,     // key of selected row
-  current: null,         // file currently open in the diff editor
+  // Diff pane mode — exactly one of these is set; use paneMode() to branch:
+  current: null,         //   editable worktree diff: the open file
+  readOnlyDiff: null,    //   commit diff from the Log tab: { hash, path }
+  conflict: null,        //   conflict-resolution session
   dirty: false,
   f7Armed: false,        // "press F7 again to go to next file"
   shiftF7Armed: false,
   settings: {},
   filter: '',            // tree filter text
   view: 'commit',        // left panel: 'commit' | 'log'
-  hunks: new Map(),      // path -> { excluded:Set<hunkKey>, total, content }
-  readOnlyDiff: null,    // { hash, short } when the editor shows a commit diff
+  hunks: new Map(),      // path -> { excluded:Set<hunkKey>, total, content, snapshots }
   blameOn: false,
-  imageDiff: null,       // current image payload when previewable
-  conflict: null,        // active conflict-resolution session
+  imageDiff: null,       // { file, hash, payload } when a preview is available
   commitTemplate: '',
   log: {
     entries: [],
-    skip: 0,
+    graphLanes: [],      // running lane state for incremental graph layout
     done: false,
     loading: false,
     selected: null,      // hash
-    details: null,
     filePath: null,      // file-history mode
   },
 };
+
+// The diff pane's mutually exclusive modes. Everything that behaves
+// differently per mode should branch on this, not re-derive it.
+function paneMode() {
+  if (state.conflict) return 'conflict';
+  if (state.readOnlyDiff) return 'commit';
+  if (state.current) return 'worktree';
+  return 'empty';
+}
 
 let diffEditor = null;
 let originalModel = null;

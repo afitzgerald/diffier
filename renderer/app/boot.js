@@ -70,16 +70,30 @@ $('btn-collapse-unchanged').addEventListener('click', async (e) => {
 
 $('btn-blame').addEventListener('click', toggleBlame);
 
-// SVG files: flip between the text diff and the rendered image preview.
-$('btn-image-view').addEventListener('click', (e) => {
+// SVG files: flip between the text diff and the rendered image preview. The
+// base64 payload is fetched lazily on first use and cached on the descriptor.
+$('btn-image-view').addEventListener('click', async (e) => {
   const btn = e.currentTarget;
   const showImage = !btn.classList.contains('active');
   btn.classList.toggle('active', showImage);
-  if (showImage && state.imageDiff) showImageDiff(state.imageDiff);
-  else {
+  if (!showImage) {
     showPane('diff');
     updateDiffCount();
+    return;
   }
+  const d = state.imageDiff;
+  if (!d) return;
+  if (!d.payload) {
+    try {
+      d.payload = await window.api.gitImageData(d.file.path, d.file.type, d.file.origPath, d.hash);
+    } catch (err) {
+      btn.classList.remove('active');
+      toast('Image preview failed: ' + err.message, true);
+      return;
+    }
+    if (state.imageDiff !== d) return; // switched files while loading
+  }
+  showImageDiff(d.payload);
 });
 
 // Conflict bar.

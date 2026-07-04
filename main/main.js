@@ -147,6 +147,9 @@ handle('git:commitDetails', (hash) => gitlib.commitDetails(requireRepo(), hash))
 handle('git:commitFileDiff', (hash, relPath, type, origPath, ref2) =>
   gitlib.commitFileDiff(requireRepo(), hash, relPath, type, origPath, ref2)
 );
+handle('git:imageData', (relPath, type, origPath, hash) =>
+  gitlib.imageData(requireRepo(), relPath, type, origPath, hash)
+);
 handle('git:stashList', () => gitlib.stashList(requireRepo()));
 handle('git:stashPush', (message, includeUntracked) =>
   gitlib.stashPush(requireRepo(), message, includeUntracked)
@@ -351,7 +354,9 @@ function buildMenu() {
 // `diffier [dir]` from a terminal: a tiny launcher script that re-opens the
 // app pointed at the given (or current) directory.
 async function installCliLauncher() {
-  const script = `#!/bin/sh\nexec open -a "Diffier" --args "\${1:-$PWD}"\n`;
+  // Resolve to an absolute path in the caller's shell — the app's own cwd
+  // is / when launched via `open`, so relative arguments would be useless.
+  const script = `#!/bin/sh\ntarget="$(cd "\${1:-.}" 2>/dev/null && pwd)" || {\n  echo "diffier: no such directory: \${1:-.}" >&2\n  exit 1\n}\nexec open -a "Diffier" --args "$target"\n`;
   const target = '/usr/local/bin/diffier';
   try {
     await fsp.writeFile(target, script, { mode: 0o755 });
