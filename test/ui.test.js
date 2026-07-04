@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const gitlib = require('../main/git');
+const keymapLib = require('../main/keymap');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -56,6 +57,9 @@ const rpc = {
   'file:save': ([p, c]) => gitlib.saveFile(repo, p, c),
   'settings:get': async () => settings,
   'settings:set': async ([patch]) => Object.assign(settings, patch),
+  'keymap:set': async ([overrides]) => {
+    settings.keymap = overrides;
+  },
   'app:confirm': async () => true,
 };
 
@@ -113,8 +117,9 @@ const API_SHIM = `
         gitCommit: 'git:commit', gitPush: 'git:push', gitRollback: 'git:rollback',
         gitLastMessage: 'git:lastMessage', saveFile: 'file:save',
         getSettings: 'settings:get', setSettings: 'settings:set',
-        confirm: 'app:confirm', revealFile: 'shell:reveal',
+        confirm: 'app:confirm', revealFile: 'shell:reveal', setKeymap: 'keymap:set',
       };
+      if (name === 'keymapActions') return ${JSON.stringify(keymapLib.ACTIONS)};
       if (name === 'onMenu' || name === 'onRepoChanged') return () => {};
       if (name === 'openRepoDialog') return async () => null;
       const ch = channels[name];
@@ -167,7 +172,21 @@ async function main() {
       } catch {
         /* retry */
       }
-      if (Date.now() - start > timeout) throw new Error('FAILED: ' + desc);
+      if (Date.now() - start > timeout) {
+        try {
+          console.log(
+            'DEBUG on failure — toast:',
+            JSON.stringify(await page.locator('#toast').textContent()),
+            'file:',
+            JSON.stringify(await page.locator('#diff-file-path').textContent()),
+            'consoleErrors:',
+            consoleErrors
+          );
+        } catch {
+          /* best effort */
+        }
+        throw new Error('FAILED: ' + desc);
+      }
       await page.waitForTimeout(150);
     }
   };
@@ -225,6 +244,57 @@ async function main() {
   await press('Shift+F7');
   await expect('Shift+F7 returns to previous file', async () =>
     (await page.locator('#diff-file-path').textContent()) === 'src/alpha.js');
+
+  // --- keymap customization: rebind Next Difference from F7 to Ctrl+J
+  //     (this platform is non-mac, so the "Mod" pseudo-modifier is Ctrl)
+  await press('Control+Comma'); // default keymap-settings binding: Mod+,
+  await expect('keymap dialog opens', async () =>
+    !(await page.locator('#keymap-overlay').getAttribute('class')).includes('hidden'));
+  await page
+    .locator('.keymap-row[data-action="next-diff"] .keymap-shortcut')
+    .click();
+  await expect('shortcut cell is recording', async () =>
+    /Press shortcut/.test(
+      await page.locator('.keymap-row[data-action="next-diff"] .keymap-shortcut').textContent()
+    ));
+  await press('Control+J');
+  await expect('new shortcut recorded', async () =>
+    (await page.locator('.keymap-row[data-action="next-diff"] .keymap-shortcut').textContent()) ===
+    'Ctrl+J');
+  await expect('override persisted to settings', async () =>
+    settings.keymap && settings.keymap['next-diff'] === 'Ctrl+J');
+  await page.locator('#keymap-done').click();
+  await expect('keymap dialog closes', async () =>
+    (await page.locator('#keymap-overlay').getAttribute('class')).includes('hidden'));
+
+  // F7 is no longer bound — pressing it must not navigate anywhere.
+  await press('F7');
+  await press('F7');
+  await expect('F7 does nothing after rebind', async () =>
+    (await page.locator('#diff-file-path').textContent()) === 'src/alpha.js');
+
+  // Ctrl+J now drives the IntelliJ flow: arm at last difference, then jump.
+  // (cursor sits at alpha's last change after the Shift+F7 continuation)
+  await press('Control+J');
+  await expect('rebound key arms next-file hint (with new key name)', async () =>
+    /Ctrl\+J to go to the next file/.test(await page.locator('#toast').textContent()));
+  await press('Control+J');
+  await expect('rebound key continues to next file', async () =>
+    (await page.locator('#diff-file-path').textContent()) === 'src/beta.js');
+
+  // Reset All restores F7.
+  await press('Control+Comma');
+  await expect('override marker shown for rebound action', async () =>
+    (await page.locator('.keymap-row[data-action="next-diff"] .overridden-marker').count()) === 1);
+  await page.locator('#keymap-reset-all').click();
+  await expect('reset-all clears the override', async () =>
+    (await page.locator('.keymap-row[data-action="next-diff"] .keymap-shortcut').textContent()) ===
+    'F7');
+  await page.locator('#keymap-done').click();
+  await press('F7'); // beta.js has one change; cursor is on it → arms
+  await press('F7');
+  await expect('F7 works again after reset', async () =>
+    (await page.locator('#diff-file-path').textContent()) === 'notes.txt');
 
   // --- tree keyboard: Escape focuses tree, arrows move selection, space toggles
   await page.keyboard.press('Escape');
