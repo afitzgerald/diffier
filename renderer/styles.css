@@ -266,6 +266,27 @@ button.primary:hover { background: var(--btn-primary-hover); }
 .icon-btn:hover { background: var(--hover); }
 .icon-btn.active { background: var(--selection-inactive); border-color: var(--accent); }
 
+/* Icon-only toolbar buttons: the glyph comes from renderer/icons/*.svg via
+   a mask (so it follows currentColor per theme), set per-button with the
+   --icon custom property. Text-label icon-btns (Pop/Apply/Drop, etc.) are
+   untouched since they don't get this modifier class. */
+.icon-btn.svg-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn.svg-icon::before {
+  content: "";
+  display: block;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  -webkit-mask: var(--icon) no-repeat center / contain;
+  mask: var(--icon) no-repeat center / contain;
+}
+.icon-btn.svg-icon.rotate-left::before { transform: rotate(-90deg); }
+.icon-btn.svg-icon.rotate-right::before { transform: rotate(90deg); }
+
 /* ------------------------------------------------------------ diff pane */
 
 #diff-toolbar {
@@ -374,7 +395,50 @@ kbd {
 }
 
 #status-right { display: flex; align-items: center; gap: 14px; }
-#status-branch::before { content: "⎇ "; color: var(--dim); }
+
+/* Stitch-sourced glyphs (renderer/icons/*.svg), tinted via mask so they
+   follow currentColor per theme instead of baking in a fixed color. */
+#status-branch::before,
+#conflict-bar::before,
+#tab-log::before,
+#btn-commit-push::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  vertical-align: -2px;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+}
+#status-branch::before,
+#tab-log::before,
+#btn-commit-push::before {
+  margin-right: 4px;
+}
+#status-branch::before {
+  -webkit-mask-image: url('icons/branch.svg');
+  mask-image: url('icons/branch.svg');
+  color: var(--dim);
+}
+#conflict-bar::before {
+  -webkit-mask-image: url('icons/merge.svg');
+  mask-image: url('icons/merge.svg');
+  color: var(--st-conflict);
+}
+#tab-log::before {
+  -webkit-mask-image: url('icons/activity.svg');
+  mask-image: url('icons/activity.svg');
+}
+#btn-commit-push::before {
+  -webkit-mask-image: url('icons/push.svg');
+  mask-image: url('icons/push.svg');
+}
+
 #status-branch { color: var(--text-bright); }
 
 .dim { color: var(--dim); }

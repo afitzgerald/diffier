@@ -10,10 +10,11 @@ spawned via the CLI (`main/git.ts`), Monaco renders the diffs.
 Every runtime source file is `.ts`; `tsc` emits the `.js` right next to
 it (same directory, same basename) so every existing relative path
 (`<script>` tags, `require()`, electron-builder globs) keeps working
-unmodified. The compiled `.js` files are committed to the repo — running
-the app or tests never requires a build step, but **editing a `.ts` file
-requires recompiling before the change takes effect** (`npm run build`,
-or let `pretest`/`prestart`/`presmoke`/`predist` do it for you).
+unmodified. The compiled `.js` files are gitignored, not committed —
+**a fresh checkout requires `npm run build` before the app or tests can
+run**, and **editing a `.ts` file requires recompiling before the
+change takes effect** (`npm run build`, or let
+`pretest`/`prestart`/`presmoke`/`predist` do it for you).
 
 - `npm run typecheck` — `tsc --noEmit` across all four programs (main,
   renderer, highlighter entry, tests). Run this after any `.ts` edit.

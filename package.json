@@ -49,6 +49,7 @@
       "node_modules/monaco-editor/min-maps/**",
       "package.json"
     ],
+    "icon": "build/icon.png",
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
