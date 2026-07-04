@@ -202,6 +202,10 @@ function renderTree(): void {
 // nodes, so repositories with thousands of changed files stay responsive.
 function renderTreeWindow(files?: FileEntry[]): void {
   if (!files) files = visibleFiles();
+  // Read scrollTop before clearing children — an empty #tree has nothing to
+  // overflow, so the browser clamps scrollTop to 0 the instant the old rows
+  // are removed, and reading it after would always see the clamped value.
+  const scrollTop = treeEl.scrollTop;
   treeEl.textContent = '';
 
   if (!files.length) {
@@ -230,7 +234,6 @@ function renderTreeWindow(files?: FileEntry[]): void {
 
   const rows = state.rows;
   const viewH = treeEl.clientHeight || 600;
-  const scrollTop = treeEl.scrollTop;
   const first = Math.max(0, Math.floor((scrollTop - TREE_ROW_H) / TREE_ROW_H) - TREE_OVERSCAN);
   const count = Math.ceil(viewH / TREE_ROW_H) + TREE_OVERSCAN * 2;
   const last = Math.min(rows.length, first + count);
@@ -242,6 +245,11 @@ function renderTreeWindow(files?: FileEntry[]): void {
   const padBottom = document.createElement('div');
   padBottom.style.height = Math.max(0, rows.length - last) * TREE_ROW_H + 'px';
   treeEl.appendChild(padBottom);
+
+  // Clearing textContent above reset the native scroll offset to 0 —
+  // restore it now that the rebuilt rows give the element something to
+  // scroll to again, or every re-render would snap the list back to the top.
+  treeEl.scrollTop = scrollTop;
 }
 
 let treeScrollRaf = 0;
