@@ -47,6 +47,11 @@ export interface Settings {
   commitHistory?: string[];
 }
 
+export interface AppInfo {
+  name: string;
+  version: string;
+}
+
 export interface ConfirmOptions {
   message: string;
   detail?: string;
@@ -108,6 +113,7 @@ export interface DiffierApi {
   gitRollback(files: RollbackTarget[]): Promise<void>;
   gitLastMessage(): Promise<string>;
   setBadge(count: number): Promise<void>;
+  getAppInfo(): Promise<AppInfo>;
 
   saveFile(relPath: string, content: string): Promise<void>;
   revealFile(relPath: string): Promise<void>;
