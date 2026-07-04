@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": [
+    "renderer/app/**/*.ts",
+    "renderer/languages.ts",
+    "renderer/global.d.ts",
+    "node_modules/monaco-editor/monaco.d.ts"
+  ]
+}

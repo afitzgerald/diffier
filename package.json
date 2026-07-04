@@ -7,11 +7,17 @@
   "license": "MIT",
   "main": "main/main.js",
   "scripts": {
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.highlighter.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && tsc -p tsconfig.test.json",
+    "prestart": "npm run build",
     "start": "electron .",
+    "presmoke": "npm run build",
     "smoke": "DIFFIER_SMOKE=1 electron --no-sandbox .",
+    "pretest": "npm run build",
     "test": "node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js",
-    "build:highlighter": "esbuild renderer/highlighter-entry.mjs --bundle --format=iife --minify --log-level=warning --outfile=renderer/highlighter.js",
+    "build:highlighter": "esbuild renderer/highlighter-entry.ts --bundle --format=iife --minify --log-level=warning --outfile=renderer/highlighter.js",
     "postinstall": "npm run build:highlighter || node -e \"console.warn('shiki highlighter bundle skipped; falling back to built-in grammars')\"",
+    "predist": "npm run build",
     "dist": "npm run build:highlighter && electron-builder --mac"
   },
   "dependencies": {
@@ -19,10 +25,13 @@
   },
   "devDependencies": {
     "@shikijs/monaco": "^4.3.1",
+    "@types/node": "^20.19.43",
     "electron": "^31.3.1",
     "electron-builder": "^24.13.3",
     "esbuild": "^0.28.1",
-    "shiki": "^4.3.1"
+    "playwright-core": "^1.61.1",
+    "shiki": "^4.3.1",
+    "typescript": "^5.9.3"
   },
   "build": {
     "appId": "com.diffier.app",
@@ -33,6 +42,9 @@
     "files": [
       "main/**",
       "renderer/**",
+      "!main/**/*.ts",
+      "!renderer/**/*.ts",
+      "!renderer/global.d.ts",
       "node_modules/monaco-editor/min/**",
       "node_modules/monaco-editor/min-maps/**",
       "package.json"
