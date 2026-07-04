@@ -202,26 +202,48 @@ async function fileDiff(root, relPath, type, origPath) {
   return result;
 }
 
-async function saveFile(root, relPath, content) {
+// Resolve relPath inside the repository or throw.
+function insideRepo(root, relPath) {
   const abs = path.join(root, relPath);
   if (path.relative(root, abs).startsWith('..')) {
     throw new Error('Path escapes repository root');
   }
-  await fs.writeFile(abs, content, 'utf8');
+  return abs;
+}
+
+async function saveFile(root, relPath, content) {
+  await fs.writeFile(insideRepo(root, relPath), content, 'utf8');
+}
+
+async function mergeInProgress(root) {
+  try {
+    await git(root, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD']);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function commit(root, files, message, amend, partials = []) {
   if (!files.length && !partials.length) throw new Error('No files selected for commit');
   if (!message.trim() && !amend) throw new Error('Commit message is empty');
-  if (partials.length) return commitWithPartials(root, files, partials, message, amend);
+  const merging = await mergeInProgress(root);
+  if (partials.length) {
+    if (merging) {
+      throw new Error('Per-hunk commits are not available while a merge is in progress');
+    }
+    return commitWithPartials(root, files, partials, message, amend);
+  }
   await git(root, ['add', '-A', '--', ...files]);
   // Pathspec-limited commit: only the selected files are committed, even if
   // other changes happen to be staged (e.g. by git mv or a CLI `git add`).
+  // Exception: git forbids partial commits while concluding a merge, so a
+  // merge commit records the whole index (like IntelliJ's merge commit).
   const args = ['commit'];
   if (amend) args.push('--amend');
   if (message.trim()) args.push('-m', message);
   else args.push('--no-edit');
-  args.push('--', ...files);
+  if (!merging) args.push('--', ...files);
   return git(root, args);
 }
 
@@ -248,11 +270,12 @@ async function commitWithPartials(root, fullFiles, partials, message, amend) {
     await gitIdx(head ? ['read-tree', 'HEAD'] : ['read-tree', '--empty']);
     if (fullFiles.length) await gitIdx(['add', '-A', '--', ...fullFiles]);
     for (const p of partials) {
-      const abs = path.join(root, p.path);
-      if (path.relative(root, abs).startsWith('..')) {
-        throw new Error('Path escapes repository root');
-      }
-      const sha = (await gitIdx(['hash-object', '-w', '--stdin'], { stdin: p.content })).trim();
+      const abs = insideRepo(root, p.path);
+      // --path applies .gitattributes filters (eol normalization, clean
+      // filters such as LFS) exactly as `git add` would.
+      const sha = (
+        await gitIdx(['hash-object', '-w', '--stdin', '--path', p.path], { stdin: p.content })
+      ).trim();
       let mode = '100644';
       try {
         const st = await fs.stat(abs);
@@ -265,9 +288,17 @@ async function commitWithPartials(root, fullFiles, partials, message, amend) {
     const tree = (await gitIdx(['write-tree'])).trim();
 
     let parents = [];
+    const commitEnv = { ...process.env };
     if (head) {
       if (amend) {
         parents = (await git(root, ['log', '-1', '--pretty=%P'])).trim().split(' ').filter(Boolean);
+        // Amending must not rewrite who wrote the commit, or when.
+        const [an, ae, ad] = (await git(root, ['log', '-1', '--pretty=%an%x00%ae%x00%aI']))
+          .trim()
+          .split('\0');
+        commitEnv.GIT_AUTHOR_NAME = an;
+        commitEnv.GIT_AUTHOR_EMAIL = ae;
+        commitEnv.GIT_AUTHOR_DATE = ad;
       } else {
         parents = [(await git(root, ['rev-parse', 'HEAD'])).trim()];
       }
@@ -275,7 +306,7 @@ async function commitWithPartials(root, fullFiles, partials, message, amend) {
     const ctArgs = ['commit-tree', tree];
     for (const p of parents) ctArgs.push('-p', p);
     ctArgs.push('-m', msg);
-    const newCommit = (await git(root, ctArgs)).trim();
+    const newCommit = (await gitOpts(root, ctArgs, { env: commitEnv })).trim();
     await git(root, [
       'update-ref', '-m', amend ? 'commit (amend): ' + msg.split('\n')[0] : 'commit: ' + msg.split('\n')[0],
       'HEAD', newCommit,
@@ -498,6 +529,7 @@ async function showFileAt(root, ref, relPath) {
 // Diff of one file inside a commit: parent version vs commit version.
 // `ref2` overrides the right side (e.g. 'WORKTREE' compares against disk).
 async function commitFileDiff(root, hash, relPath, type, origPath, ref2) {
+  const abs = insideRepo(root, relPath);
   let origBuf = Buffer.alloc(0);
   if (type !== 'ADDED') {
     origBuf = await showFileAt(root, `${hash}^`, origPath || relPath);
@@ -506,7 +538,7 @@ async function commitFileDiff(root, hash, relPath, type, origPath, ref2) {
   if (type !== 'DELETED') {
     if (ref2 === 'WORKTREE') {
       try {
-        modBuf = await fs.readFile(path.join(root, relPath));
+        modBuf = await fs.readFile(abs);
       } catch {
         modBuf = Buffer.alloc(0);
       }
@@ -582,6 +614,7 @@ async function stashDrop(root, ref) {
 const NULL_SHA = '0000000000000000000000000000000000000000';
 
 async function blame(root, relPath) {
+  insideRepo(root, relPath);
   const out = await git(root, ['blame', '--line-porcelain', '--', relPath]);
   const meta = new Map(); // full sha -> { author, time, summary }
   const lines = [];
@@ -617,6 +650,7 @@ async function blame(root, relPath) {
 
 // Stage contents for an unmerged path: 1=base, 2=ours, 3=theirs.
 async function conflictInfo(root, relPath) {
+  const abs = insideRepo(root, relPath);
   const stage = async (n) => {
     try {
       const buf = await gitRaw(root, ['show', `:${n}:${relPath}`]);
@@ -628,7 +662,7 @@ async function conflictInfo(root, relPath) {
   const [base, ours, theirs] = await Promise.all([stage(1), stage(2), stage(3)]);
   let worktree = '';
   try {
-    worktree = await fs.readFile(path.join(root, relPath), 'utf8');
+    worktree = await fs.readFile(abs, 'utf8');
   } catch {
     /* deleted in worktree */
   }
@@ -637,20 +671,29 @@ async function conflictInfo(root, relPath) {
   try {
     oursLabel = (await git(root, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim() || 'Ours';
   } catch { /* detached */ }
-  try {
-    const name = (await git(root, [
-      'name-rev', '--name-only', '--exclude', 'tags/*', 'MERGE_HEAD',
-    ])).trim();
-    theirsLabel = name && name !== 'undefined' ? name : 'Theirs';
-  } catch {
+  if (await mergeInProgress(root)) {
+    try {
+      const name = (await git(root, [
+        'name-rev', '--name-only', '--exclude', 'tags/*', 'MERGE_HEAD',
+      ])).trim();
+      theirsLabel = name && name !== 'undefined' ? name : 'Theirs';
+    } catch { /* keep default */ }
+  } else {
+    // Rebase / cherry-pick: name the incoming commit instead.
     try {
       theirsLabel = (await git(root, ['rev-parse', '--short', 'REBASE_HEAD'])).trim() || 'Theirs';
-    } catch { /* not merging/rebasing */ }
+    } catch {
+      try {
+        theirsLabel =
+          (await git(root, ['rev-parse', '--short', 'CHERRY_PICK_HEAD'])).trim() || 'Theirs';
+      } catch { /* keep default */ }
+    }
   }
   return { base, ours, theirs, worktree, oursLabel, theirsLabel };
 }
 
 async function markResolved(root, relPath, content) {
+  insideRepo(root, relPath);
   if (typeof content === 'string') await saveFile(root, relPath, content);
   await git(root, ['add', '--', relPath]);
 }

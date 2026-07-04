@@ -493,6 +493,168 @@ async function main() {
   // Clean up so the repo ends with no changes again.
   await gitlib.rollback(repo, (await gitlib.status(repo)).files);
   await page.locator('#btn-refresh').click();
+  await expect('repo clean before feature tests', async () =>
+    /No changes/.test(await page.locator('#tree').textContent()));
+
+  // --- partial staging: exclude one of two hunks, commit the other
+  fs.writeFileSync(
+    path.join(repo, 'src/alpha.js'),
+    'function a() {\n  return 111;\n}\n\nfunction b() {\n  return 2;\n}\n\nfunction c() {\n  return 333;\n}\n'
+  );
+  await page.locator('#btn-refresh').click();
+  await page.locator('.tree-row[data-key="file:src/alpha.js"]').click();
+  await expect('alpha.js reopened with 2 hunks', async () =>
+    (await page.locator('#diff-count').textContent()) === '2 differences');
+  await expect('hunk checkboxes rendered in the gutter', async () =>
+    (await page.locator('.hunk-check.checked').count()) === 2);
+  await page.locator('.hunk-check').nth(1).click();
+  await expect('second hunk excluded', async () =>
+    (await page.locator('.hunk-check.unchecked').count()) === 1);
+  // Files seen in an earlier refresh don't re-check themselves — check it.
+  const alphaCb = page.locator('.tree-row[data-key="file:src/alpha.js"] input[type=checkbox]');
+  if (!(await alphaCb.isChecked())) await alphaCb.click();
+  await expect('commit count reports a partial file', async () =>
+    /1 partial/.test(await page.locator('#commit-count').textContent()));
+  await page.locator('#commit-message').fill('feat: first hunk only');
+  await page.keyboard.press('Control+Enter');
+  await expect('partial commit toast', async () =>
+    /Committed/.test(await page.locator('#toast').textContent()));
+  await expect('committed content has hunk 1 but not hunk 2', async () => {
+    const head = require('child_process')
+      .execFileSync('git', ['show', 'HEAD:src/alpha.js'], { cwd: repo })
+      .toString();
+    return head.includes('return 111') && head.includes('return 300');
+  });
+  await expect('excluded hunk survives as a local change', async () =>
+    (await page.locator('.tree-row[data-key="file:src/alpha.js"]').count()) === 1);
+
+  // --- blame annotations on the remaining modified file
+  await page.locator('.tree-row[data-key="file:src/alpha.js"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('#btn-blame').click();
+  await expect('blame annotations rendered', async () =>
+    (await page.locator('.blame-inline').count()) > 0);
+  await page.locator('#btn-blame').click();
+  await expect('blame annotations cleared', async () =>
+    (await page.locator('.blame-inline').count()) === 0);
+
+  // --- file history via context menu
+  await page.locator('.tree-row[data-key="file:src/alpha.js"]').click({ button: 'right' });
+  await expect('context menu opens', async () =>
+    !(await page.locator('#context-menu').getAttribute('class')).includes('hidden'));
+  await page.locator('#context-menu .popup-item', { hasText: 'Show History' }).click();
+  await expect('log opens in file-history mode', async () =>
+    !(await page.locator('#log-file-filter').getAttribute('class')).includes('hidden') &&
+    /src\/alpha\.js/.test(await page.locator('#log-file-filter-label').textContent()));
+  await expect('history lists the commits touching the file', async () =>
+    (await page.locator('.log-row').count()) >= 2);
+  await page.locator('#log-file-filter-clear').click();
+
+  // --- log tab: full history, commit details, per-commit file diff
+  await expect('full log shows all commits', async () =>
+    (await page.locator('.log-row').count()) >= 3);
+  await expect('refs chip on HEAD commit', async () =>
+    (await page.locator('.log-ref').count()) >= 1);
+  await page.locator('.log-row').first().click();
+  await expect('commit details appear', async () =>
+    !(await page.locator('#log-details').getAttribute('class')).includes('hidden') &&
+    /first hunk only/.test(await page.locator('#log-details-header').textContent()));
+  await page.locator('#log-details-files .tree-row').first().click();
+  await expect('read-only commit diff opens with @rev in header', async () =>
+    /@/.test(await page.locator('#diff-file-path').textContent()));
+  await page.locator('#tab-commit').click();
+
+  // --- filter box narrows the tree
+  fs.writeFileSync(path.join(repo, 'aaa-match.txt'), 'a\n');
+  fs.writeFileSync(path.join(repo, 'bbb-other.txt'), 'b\n');
+  await page.locator('#btn-refresh').click();
+  await expect('3 changed files before filtering', async () =>
+    (await page.locator('.tree-row[data-key^="file:"]').count()) === 3);
+  await page.locator('#tree-filter').fill('aaa');
+  await expect('filter narrows to 1 file', async () =>
+    (await page.locator('.tree-row[data-key^="file:"]').count()) === 1);
+  await page.locator('#tree-filter-clear').click();
+  await expect('clearing filter restores the tree', async () =>
+    (await page.locator('.tree-row[data-key^="file:"]').count()) === 3);
+
+  // --- stash dialog: stash everything, then pop it back
+  await page.locator('#btn-stash').click();
+  await expect('stash dialog opens', async () =>
+    !(await page.locator('#stash-overlay').getAttribute('class')).includes('hidden'));
+  await page.locator('#stash-message').fill('wip from ui test');
+  await page.locator('#btn-stash-push').click();
+  await expect('stash created and listed', async () =>
+    (await page.locator('.stash-row').count()) === 1 &&
+    /wip from ui test/.test(await page.locator('.stash-row .stash-msg').textContent()));
+  await expect('working tree clean after stash', async () =>
+    (await gitlib.status(repo)).files.length === 0);
+  await page.locator('.stash-row').hover();
+  await page.locator('.stash-row .stash-actions button', { hasText: 'Pop' }).click();
+  await expect('stash popped back', async () =>
+    (await gitlib.status(repo)).files.length === 3);
+  await page.locator('#stash-done').click();
+
+  // --- branch popup: create a branch, switch back to main
+  await page.locator('#status-branch').click();
+  await expect('branch popup opens with main listed', async () =>
+    !(await page.locator('#branch-popup').getAttribute('class')).includes('hidden') &&
+    (await page.locator('#branch-list .popup-item', { hasText: 'main' }).count()) >= 1);
+  await page.locator('#branch-filter').fill('ui-test-branch');
+  await page.locator('#branch-list .popup-item', { hasText: 'Create branch' }).click();
+  await expect('new branch checked out', async () =>
+    (await page.locator('#status-branch').textContent()) === 'ui-test-branch');
+  await page.locator('#status-branch').click();
+  await page.locator('#branch-list .popup-item', { hasText: 'main' }).first().click();
+  await expect('switched back to main', async () =>
+    (await page.locator('#status-branch').textContent()) === 'main');
+
+  // --- subject length hint
+  await page.locator('#tab-commit').click();
+  await page.locator('#commit-message').fill('x'.repeat(60));
+  await expect('subject length warns past 50 chars', async () =>
+    ((await page.locator('#subject-length').getAttribute('class')) || '').includes('warn'));
+  await page.locator('#commit-message').fill('');
+
+  // --- merge conflict resolution
+  const g2 = (...args) => execFileSync('git', args, { cwd: repo }).toString();
+  g2('checkout', '-b', 'conflict-side');
+  fs.writeFileSync(path.join(repo, 'aaa-match.txt'), 'side version\n');
+  g2('add', '-A');
+  g2('commit', '-m', 'side');
+  g2('checkout', 'main');
+  fs.writeFileSync(path.join(repo, 'aaa-match.txt'), 'main version\n');
+  g2('add', '-A');
+  g2('commit', '-m', 'mainline');
+  try {
+    g2('merge', 'conflict-side');
+  } catch {
+    /* conflict expected */
+  }
+  await page.locator('#btn-refresh').click();
+  await expect('conflicted file shown in tree', async () =>
+    (await page.locator('.file-name.CONFLICT').count()) >= 1);
+  await page.locator('.tree-row[data-key="file:aaa-match.txt"]').click();
+  await expect('conflict bar appears', async () =>
+    !(await page.locator('#conflict-bar').getAttribute('class')).includes('hidden') &&
+    /Conflict 1 of 1|1 conflict/.test(await page.locator('#conflict-count').textContent()));
+  await expect('accept-all buttons labeled with branch names', async () =>
+    /main/.test(await page.locator('#btn-all-ours').textContent()) &&
+    /conflict-side/.test(await page.locator('#btn-all-theirs').textContent()));
+  await page.locator('#btn-all-theirs').click();
+  await expect('conflicts resolved in the editor', async () =>
+    /No conflicts left/.test(await page.locator('#conflict-count').textContent()));
+  await page.locator('#btn-mark-resolved').click();
+  await expect('file staged as resolved', async () => {
+    const st = await gitlib.status(repo);
+    return !st.files.some((f) => f.type === 'CONFLICT');
+  });
+  await expect('theirs content won', async () =>
+    fs.readFileSync(path.join(repo, 'aaa-match.txt'), 'utf8') === 'side version\n');
+  g2('commit', '-m', 'merged in ui test');
+
+  // Final cleanup.
+  await gitlib.rollback(repo, (await gitlib.status(repo)).files);
+  await page.locator('#btn-refresh').click();
 
   if (consoleErrors.length) {
     throw new Error('Console errors:\n' + consoleErrors.join('\n'));

@@ -43,6 +43,7 @@ const state = {
 let diffEditor = null;
 let originalModel = null;
 let modifiedModel = null;
+let currentModelsPath = null; // worktree path the diff models were built from
 let suppressModelEvents = false;
 let conflictEditor = null;
 let conflictModel = null;
@@ -432,7 +433,10 @@ function hunkStagingActive() {
     !state.readOnlyDiff &&
     !state.conflict &&
     originalModel &&
-    modifiedModel
+    modifiedModel &&
+    // A diff update for the previous file can fire after state.current moved
+    // on; without this the wrong file's hunks would be (re)attributed.
+    currentModelsPath === state.current.path
   );
 }
 
@@ -477,6 +481,10 @@ function updateHunkDecorations() {
   if (entry) {
     entry.total = changes.length;
     entry.content = buildPartialContent(changes, excluded);
+    // Snapshots let doCommit detect that the file changed on disk after the
+    // hunk selection was made (while its diff was not open).
+    entry.snapshotModified = modifiedModel.getValue();
+    entry.snapshotOriginal = originalModel.getValue();
   }
   updateCommitCount();
 }
@@ -950,6 +958,7 @@ async function openDiff(file, revealEnd) {
   const lang = languageFor(file.path, diff.modified || diff.original);
   originalModel = monaco.editor.createModel(diff.original, lang);
   modifiedModel = monaco.editor.createModel(diff.modified, lang);
+  currentModelsPath = file.path;
   diffEditor.setModel({ original: originalModel, modified: modifiedModel });
 
   // Text file with an image preview available (SVG).
@@ -989,7 +998,7 @@ async function openCommitFileDiff(commit, file) {
   await autosaveIfDirty();
 
   state.current = null;
-  state.readOnlyDiff = { hash: commit.hash, short: commit.short };
+  state.readOnlyDiff = { hash: commit.hash, short: commit.short, path: file.path };
   state.f7Armed = false;
   state.shiftF7Armed = false;
   closeConflictSession();
@@ -1006,7 +1015,13 @@ async function openCommitFileDiff(commit, file) {
     toast('Failed to load diff: ' + err.message, true);
     return;
   }
-  if (!state.readOnlyDiff || state.readOnlyDiff.hash !== commit.hash) return;
+  if (
+    !state.readOnlyDiff ||
+    state.readOnlyDiff.hash !== commit.hash ||
+    state.readOnlyDiff.path !== file.path
+  ) {
+    return; // user clicked another file while this diff loaded
+  }
 
   disposeModels();
   showPane('diff');
@@ -1042,6 +1057,7 @@ function disposeModels() {
   if (originalModel) originalModel.dispose();
   if (modifiedModel) modifiedModel.dispose();
   originalModel = modifiedModel = null;
+  currentModelsPath = null;
   suppressModelEvents = false;
 }
 
@@ -1214,7 +1230,9 @@ function updateConflictCount() {
       : idx >= 0
         ? `Conflict ${idx + 1} of ${n}`
         : `${n} conflict${n === 1 ? '' : 's'}`;
-  $('btn-mark-resolved').disabled = n > 0;
+  // Mark Resolved stays enabled even with regions left: markResolved()
+  // confirms first, and marker-lookalike content must not hard-block a file.
+  $('btn-mark-resolved').disabled = false;
   $('btn-all-ours').disabled = n === 0;
   $('btn-all-theirs').disabled = n === 0;
   $('btn-prev-conflict').disabled = n === 0;
@@ -1236,13 +1254,26 @@ function acceptConflict(i, which) {
   if (!state.conflict) return;
   const r = state.conflict.regions[i];
   if (!r) return;
-  const text = conflictRegionText(r, which).join(conflictModel.getEOL());
+  const lines = conflictRegionText(r, which);
   const endCol = conflictModel.getLineMaxColumn(r.end);
-  conflictModel.pushEditOperations(
-    [],
-    [{ range: new monaco.Range(r.start, 1, r.end, endCol), text }],
-    () => null
-  );
+  let range;
+  let text;
+  if (lines.length) {
+    range = new monaco.Range(r.start, 1, r.end, endCol);
+    text = lines.join(conflictModel.getEOL());
+  } else if (r.end < conflictModel.getLineCount()) {
+    // Accepted side is empty (e.g. "deleted in ours") — remove the region's
+    // lines including the trailing newline, not leaving a blank line behind.
+    range = new monaco.Range(r.start, 1, r.end + 1, 1);
+    text = '';
+  } else if (r.start > 1) {
+    range = new monaco.Range(r.start - 1, conflictModel.getLineMaxColumn(r.start - 1), r.end, endCol);
+    text = '';
+  } else {
+    range = new monaco.Range(r.start, 1, r.end, endCol);
+    text = '';
+  }
+  conflictModel.pushEditOperations([], [{ range, text }], () => null);
   reparseConflicts();
 }
 
@@ -1369,7 +1400,9 @@ async function applyBlame() {
       : `    · ${b.author} ${date} ${b.sha}`;
     decos.push({
       range: new monaco.Range(i + 1, col, i + 1, col),
-      options: { after: { content: text, inlineClassName: 'blame-inline' } },
+      // showIfCollapsed: injected text on an empty (collapsed) range is
+      // filtered out of rendering without it.
+      options: { showIfCollapsed: true, after: { content: text, inlineClassName: 'blame-inline' } },
     });
   }
   blameDecorationIds = diffEditor.getModifiedEditor().deltaDecorations(blameDecorationIds, decos);
@@ -1385,8 +1418,13 @@ function toggleBlame() {
 // -------------------------------------------------------- diff navigation
 
 function changeStartLine(c) {
-  // For pure deletions modifiedStartLineNumber can be 0.
-  return Math.max(1, c.modifiedEndLineNumber > 0 ? c.modifiedStartLineNumber : c.modifiedStartLineNumber + 1);
+  // For pure deletions modifiedEndLineNumber is 0 and the change anchors
+  // after modifiedStartLineNumber — which for a deletion at EOF would point
+  // past the last line, so clamp to the model.
+  const line = c.modifiedEndLineNumber > 0 ? c.modifiedStartLineNumber : c.modifiedStartLineNumber + 1;
+  const model = diffEditor && diffEditor.getModifiedEditor().getModel();
+  const max = model ? model.getLineCount() : Infinity;
+  return Math.max(1, Math.min(line, max));
 }
 
 function gotoChange(c) {
@@ -1592,6 +1630,24 @@ async function doCommit(alsoPush) {
     toast(`Resolve conflicts before committing: ${conflicted[0].path}`, true);
     return;
   }
+  // A hunk selection was computed against the file content at the time its
+  // diff was open. If the file (or HEAD) changed since, the prepared partial
+  // content would silently commit stale text — verify before committing.
+  for (const p of partials) {
+    const entry = state.hunks.get(p.path);
+    if (!entry || entry.snapshotModified == null) continue;
+    try {
+      const d = await window.api.gitDiff(p.path, 'MODIFIED', null);
+      if (d.modified !== entry.snapshotModified || d.original !== entry.snapshotOriginal) {
+        state.hunks.delete(p.path);
+        updateCommitCount();
+        toast(`${p.path} changed since its hunks were selected — reopen it and reselect`, true);
+        return;
+      }
+    } catch {
+      /* diff unavailable — let the commit surface the error */
+    }
+  }
   // The commit message template is boilerplate, not a message.
   const effectiveMsg = message.trim() === state.commitTemplate.trim() ? '' : message;
   if (!effectiveMsg.trim() && !amend) {
@@ -1702,6 +1758,14 @@ async function doFetch() {
 // ------------------------------------------------------------------ popups
 
 const POPUP_IDS = ['branch-popup', 'msg-history-popup', 'repo-popup', 'context-menu'];
+// A popup's own anchor button must not close it on mousedown — otherwise the
+// button's click handler sees a closed popup and immediately reopens it,
+// making toggle-off impossible.
+const POPUP_ANCHORS = {
+  'branch-popup': 'status-branch',
+  'msg-history-popup': 'btn-msg-history',
+  'repo-popup': 'titlebar-repo',
+};
 
 function closePopups() {
   for (const id of POPUP_IDS) $(id).classList.add('hidden');
@@ -1717,7 +1781,10 @@ window.addEventListener(
     if (!anyPopupOpen()) return;
     for (const id of POPUP_IDS) {
       const el = $(id);
-      if (!el.classList.contains('hidden') && !el.contains(e.target)) el.classList.add('hidden');
+      if (el.classList.contains('hidden') || el.contains(e.target)) continue;
+      const anchor = POPUP_ANCHORS[id] && $(POPUP_ANCHORS[id]);
+      if (anchor && anchor.contains(e.target)) continue;
+      el.classList.add('hidden');
     }
   },
   true
@@ -2171,7 +2238,9 @@ async function loadLog(reset) {
     state.log.entries.push(...batch);
     state.log.skip += batch.length;
     if (batch.length < LOG_PAGE) state.log.done = true;
-    computeLogGraph(state.log.entries);
+    // A followed file history is a sparse slice of the DAG — parents mostly
+    // aren't in the list, so lanes would never close. Skip the graph there.
+    if (!state.log.filePath) computeLogGraph(state.log.entries);
     renderLog();
   } catch (err) {
     toast('git log failed: ' + err.message, true);
@@ -2291,9 +2360,11 @@ function renderLog() {
     row.dataset.hash = c.hash;
     if (c.hash === state.log.selected) row.classList.add('selected');
 
-    const graph = document.createElement('span');
-    graph.innerHTML = logGraphSvg(c);
-    row.appendChild(graph.firstChild);
+    if (!state.log.filePath && c.graph) {
+      const graph = document.createElement('span');
+      graph.innerHTML = logGraphSvg(c);
+      row.appendChild(graph.firstChild);
+    }
 
     for (const ref of parseRefs(c.refs)) {
       const chip = document.createElement('span');
@@ -2362,12 +2433,14 @@ async function selectLogEntry(c) {
   state.log.details = det;
   renderLogDetails(det);
   // In file-history mode jump straight to this file's diff at that commit.
+  // Older commits may know the file under a pre-rename path — only auto-open
+  // when the commit actually touched the path we're following; the details
+  // list still shows everything the commit changed.
   if (state.log.filePath) {
     const f =
       det.files.find((x) => x.path === state.log.filePath) ||
-      det.files.find((x) => x.origPath === state.log.filePath) ||
-      { path: state.log.filePath, origPath: null, type: 'MODIFIED' };
-    openCommitFileDiff(det, f);
+      det.files.find((x) => x.origPath === state.log.filePath);
+    if (f) openCommitFileDiff(det, f);
   }
 }
 
