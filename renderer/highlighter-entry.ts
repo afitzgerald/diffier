@@ -8,16 +8,35 @@
  * shiki's pure-JavaScript regex engine (no WASM, so the strict renderer CSP
  * stays untouched) and wired into Monaco via @shikijs/monaco.
  *
- * The language list and file metadata live in languages.js
- * (SHIKI_LANGUAGES) so detection, registration, and tests share one source.
- * app.js calls window.DiffierShiki.init() after Monaco loads; if this bundle
- * is missing the app falls back to the hand-written Monarch grammars.
+ * The language list and file metadata live in languages.ts (SHIKI_LANGUAGES)
+ * so detection, registration, and tests share one source. boot.ts calls
+ * window.DiffierShiki.init() after Monaco loads; if this bundle is missing
+ * the app falls back to the hand-written Monarch grammars.
+ *
+ * esbuild bundles this file (transpiling TS, not type-checking it — run
+ * `tsc -p tsconfig.highlighter.json --noEmit` for that); languages.js is a
+ * CommonJS module at this point in the build (see languages.ts's UMD check),
+ * so the default import below picks up its `module.exports`.
  */
 
 import { createHighlighterCore } from '@shikijs/core';
 import { createJavaScriptRegexEngine } from '@shikijs/engine-javascript';
 import { shikiToMonaco } from '@shikijs/monaco';
-import meta from './languages.js';
+import type { LanguageInput } from '@shikijs/core';
+
+// languages.ts is a classic <script>-loadable global script (UMD-style, no
+// real export statements — see its own comment), so tsc always resolves the
+// import below against the real file and reports it as "not a module"; the
+// runtime value is fine (esbuild bundles it and picks up the
+// `module.exports = api` branch as the default export). Typed by hand via
+// the cast below instead of fighting module resolution for one import.
+// @ts-expect-error — see comment above; languages.ts is intentionally not a module.
+import metaUntyped from './languages.js';
+
+interface LanguagesMeta {
+  SHIKI_LANGUAGES: { id: string; extensions?: string[]; filenames?: string[] }[];
+}
+const meta = metaUntyped as unknown as LanguagesMeta;
 
 import vue from '@shikijs/langs/vue';
 import svelte from '@shikijs/langs/svelte';
@@ -49,11 +68,20 @@ import haxe from '@shikijs/langs/haxe';
 import commonLisp from '@shikijs/langs/common-lisp';
 import racket from '@shikijs/langs/racket';
 
-const GRAMMARS = [
+const GRAMMARS: LanguageInput[] = [
   vue, svelte, astro, toml, make, cmake, groovy, haskell, erlang, zig, nix,
   latex, diff, elm, ocaml, crystal, nim, prisma, glsl, dlang, gleam, odin,
   purescript, ada, asm, awk, haxe, commonLisp, racket,
 ];
+
+// The shiki TextMate theme JSON shape produced by renderer/app/theme.ts's
+// toShikiTheme() — distinct from Monaco's own IStandaloneThemeData.
+interface ShikiThemeInput {
+  name: string;
+  type: 'light' | 'dark';
+  colors: Record<string, string>;
+  settings: { scope?: string | string[]; settings: { foreground?: string; background?: string } }[];
+}
 
 /**
  * @param monaco the loaded monaco namespace
@@ -61,7 +89,7 @@ const GRAMMARS = [
  *               "diffier-<themeId>"); monaco.editor.setTheme() with those
  *               names switches token colors after init.
  */
-async function init(monaco, themes) {
+async function init(monaco: typeof import('monaco-editor'), themes: ShikiThemeInput[]): Promise<string[]> {
   const highlighter = await createHighlighterCore({
     themes,
     langs: GRAMMARS.flat(),
@@ -82,4 +110,4 @@ async function init(monaco, themes) {
   return highlighter.getLoadedLanguages();
 }
 
-window.DiffierShiki = { init };
+(window as unknown as { DiffierShiki: { init: typeof init } }).DiffierShiki = { init };
