@@ -1,0 +1,49 @@
+{
+  "name": "diffier",
+  "productName": "Diffier",
+  "version": "0.1.0",
+  "description": "IntelliJ-style Git diff editor for macOS",
+  "author": "Alan Fitzgerald",
+  "license": "MIT",
+  "main": "main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "DIFFIER_SMOKE=1 electron --no-sandbox .",
+    "test": "node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js",
+    "build:highlighter": "esbuild renderer/highlighter-entry.mjs --bundle --format=iife --minify --log-level=warning --outfile=renderer/highlighter.js",
+    "postinstall": "npm run build:highlighter || node -e \"console.warn('shiki highlighter bundle skipped; falling back to built-in grammars')\"",
+    "dist": "npm run build:highlighter && electron-builder --mac"
+  },
+  "dependencies": {
+    "monaco-editor": "^0.49.0"
+  },
+  "devDependencies": {
+    "@shikijs/monaco": "^4.3.1",
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3",
+    "esbuild": "^0.28.1",
+    "shiki": "^4.3.1"
+  },
+  "build": {
+    "appId": "com.diffier.app",
+    "productName": "Diffier",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main/**",
+      "renderer/**",
+      "node_modules/monaco-editor/min/**",
+      "node_modules/monaco-editor/min-maps/**",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "darkModeSupport": true
+    }
+  }
+}

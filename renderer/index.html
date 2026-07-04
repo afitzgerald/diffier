@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' blob: data:; font-src 'self' data:; img-src 'self' data:; worker-src 'self' blob: data:;" />
+  <title>Diffier</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="titlebar">
+    <div id="titlebar-repo"></div>
+  </div>
+
+  <div id="main">
+    <div id="commit-panel">
+      <div class="panel-header">
+        <span class="panel-title">Commit</span>
+        <span class="panel-actions">
+          <button class="icon-btn" id="btn-refresh" title="Refresh File Status">⟳</button>
+          <button class="icon-btn" id="btn-rollback" title="Rollback…">↩</button>
+          <button class="icon-btn" id="btn-expand-all" title="Expand All">＋</button>
+          <button class="icon-btn" id="btn-collapse-all" title="Collapse All">－</button>
+          <button class="icon-btn" id="btn-keymap" title="Keymap Settings">⌘</button>
+        </span>
+      </div>
+
+      <div id="tree" tabindex="0" aria-label="Changed files"></div>
+
+      <div id="commit-area">
+        <textarea id="commit-message" placeholder="Commit Message" rows="4"
+                  spellcheck="false"></textarea>
+        <div id="commit-options">
+          <label class="checkbox-label">
+            <input type="checkbox" id="amend-checkbox" />
+            <span>Amend</span>
+          </label>
+          <span id="commit-count" class="dim"></span>
+        </div>
+        <div id="commit-buttons">
+          <button id="btn-commit" class="primary" title="Commit (⌘⏎)">Commit</button>
+          <button id="btn-commit-push" title="Commit and Push (⌥⌘⏎)">Commit and Push…</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="splitter"></div>
+
+    <div id="diff-pane">
+      <div id="diff-toolbar">
+        <div id="diff-file-info">
+          <span id="diff-file-icon"></span>
+          <span id="diff-file-path" class="dim">No file selected</span>
+          <span id="diff-dirty" title="Unsaved changes"></span>
+        </div>
+        <div id="diff-controls">
+          <span id="diff-count" class="dim"></span>
+          <button class="icon-btn" id="btn-prev-diff" title="Previous Difference (⇧F7)">↑</button>
+          <button class="icon-btn" id="btn-next-diff" title="Next Difference (F7)">↓</button>
+          <span class="toolbar-sep"></span>
+          <button class="icon-btn" id="btn-prev-file" title="Previous Changed File (⌘⇧[ / ⌥←)">«</button>
+          <button class="icon-btn" id="btn-next-file" title="Next Changed File (⌘⇧] / ⌥→)">»</button>
+          <span class="toolbar-sep"></span>
+          <select id="viewer-mode" title="Diff viewer mode">
+            <option value="side">Side-by-Side Viewer</option>
+            <option value="unified">Unified Viewer</option>
+          </select>
+          <button class="icon-btn" id="btn-whitespace" title="Ignore Whitespace">⎵</button>
+        </div>
+      </div>
+      <div id="diff-editor"></div>
+      <div id="diff-empty">
+        <div id="diff-empty-inner">
+          <div class="big">Diffier</div>
+          <div class="hint" id="empty-hint">Open a Git repository to get started — <kbd>⌘O</kbd></div>
+          <div class="keys">
+            <div><kbd>F7</kbd> / <kbd>⇧F7</kbd><span>Next / previous difference</span></div>
+            <div><kbd>⌘⇧]</kbd> / <kbd>⌘⇧[</kbd><span>Next / previous changed file</span></div>
+            <div><kbd>⌘K</kbd><span>Commit</span></div>
+            <div><kbd>⌘⇧K</kbd><span>Push</span></div>
+            <div><kbd>⌥⌘Z</kbd><span>Rollback selected</span></div>
+            <div><kbd>⌘0</kbd><span>Toggle commit tool window</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="statusbar">
+    <span id="status-path" class="dim"></span>
+    <span id="status-right">
+      <span id="status-message"></span>
+      <span id="status-branch"></span>
+    </span>
+  </div>
+
+  <div id="toast"></div>
+
+  <div id="keymap-overlay" class="hidden">
+    <div id="keymap-dialog">
+      <div class="dialog-header">
+        <span>Settings</span>
+      </div>
+      <div class="dialog-section">Appearance</div>
+      <div class="settings-row">
+        <span class="keymap-label">Theme</span>
+        <select id="theme-select"></select>
+      </div>
+      <div class="dialog-section">
+        Keymap
+        <span class="dim">— click a shortcut, then press the new key combination</span>
+      </div>
+      <div id="keymap-list"></div>
+      <div class="dialog-note dim">
+        Tree navigation (<kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd>
+        <kbd>Space</kbd> <kbd>⏎</kbd>) is fixed. Recording: press
+        <kbd>Esc</kbd> to cancel.
+      </div>
+      <div class="dialog-footer">
+        <button id="keymap-reset-all">Reset All to Defaults</button>
+        <span class="dialog-spacer"></span>
+        <button id="keymap-done" class="primary">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../node_modules/monaco-editor/min/vs/loader.js"></script>
+  <script src="languages.js"></script>
+  <!-- Optional shiki bundle (built on postinstall); app.js falls back to
+       Monarch grammars when absent, so a 404 here is non-fatal. -->
+  <script src="highlighter.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
