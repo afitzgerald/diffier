@@ -26,7 +26,7 @@ const ACTIONS = [
   { id: 'open-repo', label: 'Open Repository', default: 'Mod+O' },
   { id: 'refresh', label: 'Refresh File Status', default: 'Mod+R' },
   { id: 'toggle-panel', label: 'Commit Tool Window', default: 'Mod+0' },
-  { id: 'keymap-settings', label: 'Keymap Settings', default: 'Mod+,' },
+  { id: 'keymap-settings', label: 'Settings', default: 'Mod+,' },
 ];
 
 const MOD_ORDER = ['Ctrl', 'Alt', 'Shift', 'Meta'];

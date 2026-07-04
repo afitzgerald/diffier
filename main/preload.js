@@ -2,6 +2,7 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 const keymap = require('./keymap');
+const themes = require('./themes');
 
 async function call(channel, ...args) {
   const res = await ipcRenderer.invoke(channel, ...args);
@@ -30,6 +31,9 @@ contextBridge.exposeInMainWorld('api', {
 
   keymapActions: keymap.ACTIONS,
   setKeymap: (overrides) => call('keymap:set', overrides),
+
+  themes: themes.THEMES,
+  defaultTheme: themes.DEFAULT_THEME,
 
   onMenu: (cb) => ipcRenderer.on('menu', (_e, id) => cb(id)),
   onRepoChanged: (cb) => ipcRenderer.on('repo:changed', () => cb()),

@@ -5,10 +5,23 @@ commit tool window and diff viewer — same layout, same keybindings, same
 flow — as a standalone desktop app for reviewing, editing, and committing
 working-tree changes in any Git repository.
 
-![Diffier](docs/screenshot.png)
+![Diffier — Islands Dark](docs/screenshot.png)
+
+<details>
+<summary>Islands Light theme</summary>
+
+![Diffier — Islands Light](docs/theme-light.png)
+</details>
 
 ## Features
 
+- **Themes** — a port of the JetBrains **Islands Dark** UI is the default:
+  the tool window and editor float as rounded panels on a darker window
+  background, with the New UI color palette. **Islands Light** and classic
+  **Darcula** are included; switch in Settings (`⌘,`) or **View ▸ Theme**.
+  Themes restyle everything — panels, VCS status colors, buttons, and the
+  Monaco editor including diff and syntax colors — and new themes are plain
+  data objects in `main/themes.js`.
 - **Changes tree** — changed files grouped by directory (single-child
   directory chains compressed, IntelliJ style), with tri-state checkboxes
   to pick what goes into the commit and IntelliJ's VCS status colors
@@ -35,9 +48,9 @@ working-tree changes in any Git repository.
 
 ## Keybindings (IntelliJ keymap)
 
-Every shortcut below is the default and can be changed: open **Keymap
-Settings** (`⌘,`, the ⌘ button in the Commit panel header, or the app
-menu), click a shortcut, and press your preferred combination. Assigning a
+Every shortcut below is the default and can be changed: open **Settings**
+(`⌘,`, the ⌘ button in the Commit panel header, or the app menu), click a
+shortcut, and press your preferred combination. Assigning a
 combination that another action already uses steals it from that action;
 `↺` resets one action, **Reset All to Defaults** resets everything, `✕`
 unbinds an action. Overrides are stored in `settings.json` under `keymap`
@@ -63,7 +76,7 @@ tooltips. Tree navigation (`↑` `↓` `←` `→` `Space` `⏎`) is fixed.
 | `⌘0` | Toggle the commit tool window |
 | `⌘O` | Open a repository |
 | `⌘R` | Refresh file status |
-| `⌘,` | Keymap settings |
+| `⌘,` | Settings (theme + keymap) |
 
 ## Running
 
@@ -89,7 +102,8 @@ npm run dist        # produces dist/Diffier-<version>.dmg and .zip
   a throwaway repository (status parsing for every change type, renames,
   diffs, partial commits, amend, rollback, binary detection, path-escape
   protection) plus unit tests for the keymap module (normalization,
-  accelerator conversion, default-conflict check).
+  accelerator conversion, default-conflict check) and the theme registry
+  (complete/consistent variable sets, valid colors, dark/light sanity).
 - `node test/ui.test.js` — end-to-end UI test. The renderer talks to the
   main process only through `window.api`, so the test serves the renderer
   over HTTP with an RPC shim backed by the real Git layer and drives the
@@ -107,6 +121,7 @@ main/
                IPC, settings persistence, recursive file watcher
   git.js       All Git operations (spawns the git CLI; no native deps)
   keymap.js    Action/keybinding definitions shared by both processes
+  themes.js    Theme definitions (CSS variables + Monaco colors)
   preload.js   contextBridge API — the renderer has no Node access
 renderer/
   index.html   Layout: commit panel, diff toolbar, Monaco container

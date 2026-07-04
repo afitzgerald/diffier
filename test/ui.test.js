@@ -15,6 +15,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const gitlib = require('../main/git');
 const keymapLib = require('../main/keymap');
+const themesLib = require('../main/themes');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -120,6 +121,8 @@ const API_SHIM = `
         confirm: 'app:confirm', revealFile: 'shell:reveal', setKeymap: 'keymap:set',
       };
       if (name === 'keymapActions') return ${JSON.stringify(keymapLib.ACTIONS)};
+      if (name === 'themes') return ${JSON.stringify(themesLib.THEMES)};
+      if (name === 'defaultTheme') return ${JSON.stringify(themesLib.DEFAULT_THEME)};
       if (name === 'onMenu' || name === 'onRepoChanged') return () => {};
       if (name === 'openRepoDialog') return async () => null;
       const ch = channels[name];
@@ -295,6 +298,48 @@ async function main() {
   await press('F7');
   await expect('F7 works again after reset', async () =>
     (await page.locator('#diff-file-path').textContent()) === 'notes.txt');
+
+  // --- themes: Islands Dark by default, switchable via the Settings dialog
+  await expect('Islands Dark is the default theme', async () =>
+    page.evaluate(
+      () =>
+        document.body.dataset.theme === 'islands-dark' &&
+        document.body.dataset.themeStyle === 'islands' &&
+        getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() === '#1e1f22'
+    ));
+  await press('Control+Comma');
+  await expect('theme select shows current theme', async () =>
+    (await page.locator('#theme-select').inputValue()) === 'islands-dark');
+  await page.locator('#theme-select').selectOption('darcula');
+  await expect('darcula applied to DOM and CSS vars', async () =>
+    page.evaluate(
+      () =>
+        document.body.dataset.theme === 'darcula' &&
+        document.body.dataset.themeStyle === 'classic' &&
+        getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() === '#2b2b2b'
+    ));
+  await expect('theme persisted to settings', async () => settings.theme === 'darcula');
+  await expect('monaco editor recolored', async () =>
+    page.evaluate(() => {
+      // Monaco applies the theme's editor.background to .monaco-editor
+      // (directly or via the --vscode-editor-background variable).
+      const el = document.querySelector('#diff-editor .monaco-editor');
+      if (!el) return false;
+      const cs = getComputedStyle(el);
+      return (
+        cs.backgroundColor === 'rgb(43, 43, 43)' ||
+        cs.getPropertyValue('--vscode-editor-background').trim() === '#2b2b2b'
+      );
+    }));
+  await page.locator('#theme-select').selectOption('islands-light');
+  await expect('light theme applied', async () =>
+    page.evaluate(
+      () =>
+        document.body.dataset.theme === 'islands-light' &&
+        getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() === '#ffffff'
+    ));
+  await page.locator('#theme-select').selectOption('islands-dark');
+  await page.locator('#keymap-done').click();
 
   // --- tree keyboard: Escape focuses tree, arrows move selection, space toggles
   await page.keyboard.press('Escape');
