@@ -21,7 +21,7 @@ working-tree changes in any Git repository.
   **Darcula** are included; switch in Settings (`⌘,`) or **View ▸ Theme**.
   Themes restyle everything — panels, VCS status colors, buttons, and the
   Monaco editor including diff and syntax colors — and new themes are plain
-  data objects in `main/themes.js`.
+  data objects in `main/themes.ts`.
 - **Changes tree** — changed files grouped by directory (single-child
   directory chains compressed, IntelliJ style), with tri-state checkboxes
   to pick what goes into the commit and IntelliJ's VCS status colors
@@ -138,7 +138,7 @@ Settings or use the **Git** / **View** menus.
 
 ```sh
 npm install    # also builds the shiki highlighter bundle (postinstall)
-npm start
+npm start      # compiles the TypeScript sources first (prestart), then launches
 ```
 
 The app reopens the last repository on launch; use `⌘O` to pick another.
@@ -149,68 +149,91 @@ On a Mac:
 
 ```sh
 npm install
-npm run dist        # produces dist/Diffier-<version>.dmg and .zip
+npm run dist        # compiles, rebuilds the shiki bundle, then produces
+                    # dist/Diffier-<version>.dmg and .zip
 ```
+
+## TypeScript
+
+The whole app is TypeScript, compiled **in place**: `tsc` emits each
+`.js` right next to its `.ts` source (no bundler, no `dist/` for source —
+`dist/` is only electron-builder's packaged app output). The compiled
+`.js` is committed, so cloning and running never requires a build step,
+but editing a `.ts` file does — `npm run build` (or just `npm start` /
+`npm test`, which run it for you via `pre*` script hooks). Run
+`npm run typecheck` for a fast `--noEmit` check across all four
+`tsconfig*.json` programs (main process, renderer, the shiki bundle
+entry, tests) without writing any `.js`.
 
 ## Development & tests
 
-- `npm test` — integration tests for the Git layer (`main/git.js`) against
-  a throwaway repository (status parsing for every change type, renames,
-  diffs, pathspec and per-hunk partial commits, amend author preservation,
-  merge-commit fallback, log/commit details, branches, stash, blame,
-  conflict stages and resolution, worktree detection, rollback, binary
-  detection, path-escape protection) plus unit tests for the keymap module
-  (normalization, accelerator conversion, default-conflict check), the
-  theme registry (complete/consistent variable sets, valid colors,
-  dark/light sanity), and language detection (grammar shape,
-  extension-collision check, shiki-grammar existence, detection with and
-  without the shiki bundle).
-- `node test/ui.test.js` — end-to-end UI test. The renderer talks to the
-  main process only through `window.api`, so the test serves the renderer
-  over HTTP with an RPC shim backed by the real Git layer and drives the
-  full flow (tree, F7 navigation, editing + autosave, commit, rollback,
-  hunk staging, blame, file history, log details, filtering, stash,
-  branch create/switch, conflict resolution) with Playwright. Set
-  `DIFFIER_CHROMIUM` to your Chromium binary if it is not at
-  `/opt/pw-browsers/chromium`.
-- `npm run smoke` — boots the real Electron app, loads the repo from
-  `DIFFIER_SMOKE_REPO`, and fails on any renderer error.
+- `npm test` — recompiles, then runs integration tests for the Git layer
+  (`main/git.ts`) against a throwaway repository (status parsing for
+  every change type, renames, diffs, pathspec and per-hunk partial
+  commits, amend author preservation, merge-commit fallback, log/commit
+  details, branches, stash, blame, conflict stages and resolution,
+  worktree detection, rollback, binary detection, path-escape
+  protection) plus unit tests for the keymap module (normalization,
+  accelerator conversion, default-conflict check), the theme registry
+  (complete/consistent variable sets, valid colors, dark/light sanity),
+  and language detection (grammar shape, extension-collision check,
+  shiki-grammar existence, detection with and without the shiki bundle).
+- `npm run build && node test/ui.test.js` — end-to-end UI test. The
+  renderer talks to the main process only through `window.api`, so the
+  test serves the renderer over HTTP with an RPC shim backed by the real
+  Git layer and drives the full flow (tree, F7 navigation, editing +
+  autosave, commit, rollback, hunk staging, blame, file history, log
+  details, filtering, stash, branch create/switch, conflict resolution)
+  with Playwright. Set `DIFFIER_CHROMIUM` to your Chromium binary if it
+  is not at `/opt/pw-browsers/chromium`.
+- `npm run smoke` — recompiles, then boots the real Electron app, loads
+  the repo from `DIFFIER_SMOKE_REPO`, and fails on any renderer error.
 
 ## Architecture
 
+Every file below is `.ts`, compiled in place to a same-named `.js`
+that ships/runs unchanged (see [TypeScript](#typescript) above).
+
 ```
 main/
-  main.js      Electron main process: window, menu (built from the keymap),
-               IPC, settings persistence, recursive file watcher
-  git.js       All Git operations (spawns the git CLI; no native deps)
-  keymap.js    Action/keybinding definitions shared by both processes
-  themes.js    Theme definitions (CSS variables + Monaco colors)
-  preload.js   contextBridge API — the renderer has no Node access
+  main.ts        Electron main process: window, menu (built from the keymap),
+                 IPC, settings persistence, recursive file watcher
+  git.ts         All Git operations (spawns the git CLI; no native deps)
+  git-types.ts   Git domain types (FileEntry, StatusResult, ...) — no
+                 runtime deps, so the renderer program can import them too
+  keymap.ts      Action/keybinding logic shared by both processes
+  keymap-types.ts  ActionId/KeymapAction types + the ACTIONS table
+  api-types.ts   The DiffierApi surface (window.api) + Settings/RepoInfo
+  themes.ts      Theme definitions (CSS variables + Monaco colors)
+  preload.ts     contextBridge API — the renderer has no Node access
 renderer/
   index.html   Layout: commit panel, log view, diff toolbar, popups/dialogs
+  global.d.ts  Ambient globals for the renderer program: window.api's type,
+               the domain types re-declared as bare globals for the
+               classic-script files below
   styles.css   Themeable styles (CSS variables) + islands/classic layouts
   app/         Renderer modules — classic scripts sharing the global scope,
                loaded in dependency order (see index.html):
-    core.js            Shared state, DOM helpers, toast/status utilities
-    theme.js           Theme application and shiki theme mapping
-    keymap.js          Keybinding state, normalization, event matching
-    editor.js          Monaco bootstrap, diff editor, language detection
-    staging.js         Partial (per-hunk) staging and commit selection
-    tree.js            Changes tree: model, windowed rendering, filter
-    diff-view.js       Diff pane: worktree/commit diffs, image preview
-    conflict.js        Merge conflict resolution editor
-    blame.js           Inline git blame annotations
-    navigation.js      IntelliJ F7-style difference navigation
-    repo.js            Repository lifecycle: status refresh, setRepo
-    git-actions.js     Commit, push, pull, fetch, rollback
-    popups.js          Popup infra, branch popup, msg history, repo switcher
-    stash.js           Stash dialog
-    log.js             Log tab: lane graph, commit details, file history
-    actions.js         Action registry and global keyboard handling
-    settings-dialog.js Settings dialog: theme picker and keymap editor
-    boot.js            Menu IPC, toolbar wiring, splitter, startup
-  languages.js Language metadata: detection, aliases, Monarch fallbacks
-  highlighter-entry.mjs
+    core.ts            Shared state, DOM helpers, toast/status utilities
+    theme.ts           Theme application and shiki theme mapping
+    keymap.ts          Keybinding state, normalization, event matching
+    editor.ts          Monaco bootstrap, diff editor, language detection
+    staging.ts         Partial (per-hunk) staging and commit selection
+    tree.ts            Changes tree: model, windowed rendering, filter
+    diff-view.ts       Diff pane: worktree/commit diffs, image preview
+    conflict.ts        Merge conflict resolution editor
+    blame.ts           Inline git blame annotations
+    navigation.ts      IntelliJ F7-style difference navigation
+    repo.ts            Repository lifecycle: status refresh, setRepo
+    git-actions.ts     Commit, push, pull, fetch, rollback
+    popups.ts          Popup infra, branch popup, msg history, repo switcher
+    stash.ts           Stash dialog
+    log.ts             Log tab: lane graph, commit details, file history
+    actions.ts         Action registry and global keyboard handling
+    settings-dialog.ts Settings dialog: theme picker and keymap editor
+    boot.ts            Menu IPC, toolbar wiring, splitter, startup
+  languages.ts Language metadata: detection, aliases, Monarch fallbacks
+  highlighter-entry.ts
                Shiki bundle source (esbuild → renderer/highlighter.js on
                postinstall): TextMate grammars + JS regex engine + monaco
                wiring via @shikijs/monaco

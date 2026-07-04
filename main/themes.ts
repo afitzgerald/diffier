@@ -1,0 +1,235 @@
+'use strict';
+
+/*
+ * Theme definitions shared by the main process (View ▸ Theme menu) and the
+ * renderer (CSS variables + Monaco editor themes).
+ *
+ * `vars` are CSS custom properties (without the leading --). `style` selects
+ * the structural look: 'islands' renders the tool window and editor as
+ * rounded floating panels on a darker window background (a port of the
+ * JetBrains Islands UI); 'classic' is the flat single-surface layout.
+ */
+
+// Type-only import: monaco-editor is a browser library the renderer loads
+// via a global <script> tag, never required at runtime here. This gives the
+// `monaco` field below the exact shape monaco.editor.defineTheme() expects.
+import type { editor } from 'monaco-editor';
+
+export type ThemeId = 'islands-dark' | 'islands-light' | 'darcula';
+export type ThemeStyle = 'islands' | 'classic';
+
+export interface Theme {
+  id: ThemeId;
+  label: string;
+  style: ThemeStyle;
+  vars: Record<string, string>;
+  monaco: editor.IStandaloneThemeData;
+}
+
+export const DEFAULT_THEME: ThemeId = 'islands-dark';
+
+export const THEMES: Record<ThemeId, Theme> = {
+  'islands-dark': {
+    id: 'islands-dark',
+    label: 'Islands Dark',
+    style: 'islands',
+    vars: {
+      'window-bg': '#101113',
+      bg: '#1e1f22',
+      'panel-bg': '#1e1f22',
+      border: '#2b2d30',
+      'border-light': '#393b40',
+      text: '#bcbec4',
+      'text-bright': '#dfe1e5',
+      dim: '#6f737a',
+      hover: '#2b2d30',
+      selection: '#2e436e',
+      'selection-inactive': '#313438',
+      'selection-fg': '#dfe1e5',
+      accent: '#3574f0',
+      'btn-bg': '#2b2d30',
+      'btn-hover': '#393b40',
+      'btn-primary': '#3574f0',
+      'btn-primary-hover': '#4884f5',
+      'btn-primary-border': '#3574f0',
+      'input-bg': '#2b2d30',
+      'toast-bg': '#2b2d30',
+      'toast-border': '#393b40',
+      'toast-error-bg': '#402b2c',
+      'toast-error-border': '#bd5757',
+      scrollbar: '#43454a',
+      'scrollbar-hover': '#55575c',
+      'st-modified': '#56a8f5',
+      'st-added': '#73bd79',
+      'st-deleted': '#7a7e85',
+      'st-unversioned': '#ed7261',
+      'st-conflict': '#f75464',
+      'st-moved': '#43b9c9',
+    },
+    monaco: {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [
+        { token: '', foreground: 'bcbec4', background: '1e1f22' },
+        { token: 'comment', foreground: '7a7e85' },
+        { token: 'keyword', foreground: 'cf8e6d' },
+        { token: 'number', foreground: '2aacb8' },
+        { token: 'string', foreground: '6aab73' },
+        { token: 'type', foreground: '56a8f5' },
+        { token: 'tag', foreground: 'd5b778' },
+      ],
+      colors: {
+        'editor.background': '#1e1f22',
+        'editor.foreground': '#bcbec4',
+        'editor.lineHighlightBackground': '#26282e',
+        'editorLineNumber.foreground': '#4b5059',
+        'editorGutter.background': '#1e1f22',
+        'editor.selectionBackground': '#214283',
+        'diffEditor.insertedTextBackground': '#57965c26',
+        'diffEditor.insertedLineBackground': '#2b3b2e80',
+        'diffEditor.removedTextBackground': '#c7545026',
+        'diffEditor.removedLineBackground': '#3e2a2a80',
+        'diffEditorGutter.insertedLineBackground': '#2b3b2e',
+        'diffEditorGutter.removedLineBackground': '#3e2a2a',
+        'scrollbarSlider.background': '#43454a66',
+        'scrollbarSlider.hoverBackground': '#55575c88',
+      },
+    },
+  },
+
+  'islands-light': {
+    id: 'islands-light',
+    label: 'Islands Light',
+    style: 'islands',
+    vars: {
+      'window-bg': '#ebecf0',
+      bg: '#ffffff',
+      'panel-bg': '#ffffff',
+      border: '#d3d5db',
+      'border-light': '#c9ccd6',
+      text: '#27282e',
+      'text-bright': '#000000',
+      dim: '#818594',
+      hover: '#f2f3f5',
+      selection: '#d4e2ff',
+      'selection-inactive': '#e8eaec',
+      'selection-fg': '#27282e',
+      accent: '#3574f0',
+      'btn-bg': '#f7f8fa',
+      'btn-hover': '#ebecf0',
+      'btn-primary': '#3574f0',
+      'btn-primary-hover': '#2e62d9',
+      'btn-primary-border': '#3574f0',
+      'input-bg': '#ffffff',
+      'toast-bg': '#ffffff',
+      'toast-border': '#c9ccd6',
+      'toast-error-bg': '#fce8e8',
+      'toast-error-border': '#db3b4b',
+      scrollbar: '#c9ccd6',
+      'scrollbar-hover': '#a8abb3',
+      'st-modified': '#2e62d9',
+      'st-added': '#1f8a45',
+      'st-deleted': '#818594',
+      'st-unversioned': '#d14840',
+      'st-conflict': '#db3b4b',
+      'st-moved': '#2e9cb8',
+    },
+    monaco: {
+      base: 'vs',
+      inherit: true,
+      rules: [
+        { token: '', foreground: '080809', background: 'ffffff' },
+        { token: 'comment', foreground: '8c8c8c' },
+        { token: 'keyword', foreground: '0033b3' },
+        { token: 'number', foreground: '1750eb' },
+        { token: 'string', foreground: '067d17' },
+        { token: 'type', foreground: '371f80' },
+        { token: 'tag', foreground: '0033b3' },
+      ],
+      colors: {
+        'editor.background': '#ffffff',
+        'editor.foreground': '#080809',
+        'editor.lineHighlightBackground': '#f5f8fe',
+        'editorLineNumber.foreground': '#adadad',
+        'editorGutter.background': '#ffffff',
+        'editor.selectionBackground': '#a6d2ff',
+        'diffEditor.insertedTextBackground': '#c8e8ce80',
+        'diffEditor.insertedLineBackground': '#e6f5e9',
+        'diffEditor.removedTextBackground': '#f2c9ce80',
+        'diffEditor.removedLineBackground': '#fbe9eb',
+        'diffEditorGutter.insertedLineBackground': '#c5e0cb',
+        'diffEditorGutter.removedLineBackground': '#f0c4ca',
+        'scrollbarSlider.background': '#c9ccd666',
+        'scrollbarSlider.hoverBackground': '#a8abb388',
+      },
+    },
+  },
+
+  darcula: {
+    id: 'darcula',
+    label: 'Darcula',
+    style: 'classic',
+    vars: {
+      'window-bg': '#2b2b2b',
+      bg: '#2b2b2b',
+      'panel-bg': '#3c3f41',
+      border: '#323232',
+      'border-light': '#515151',
+      text: '#bbbbbb',
+      'text-bright': '#dfe1e5',
+      dim: '#808080',
+      hover: '#4c5052',
+      selection: '#4b6eaf',
+      'selection-inactive': '#0d293e',
+      'selection-fg': '#ffffff',
+      accent: '#3574f0',
+      'btn-bg': '#4c5052',
+      'btn-hover': '#55595b',
+      'btn-primary': '#365880',
+      'btn-primary-hover': '#40668f',
+      'btn-primary-border': '#4c708c',
+      'input-bg': '#45494a',
+      'toast-bg': '#4c5052',
+      'toast-border': '#515151',
+      'toast-error-bg': '#593d41',
+      'toast-error-border': '#8f5247',
+      scrollbar: '#5a5d5e',
+      'scrollbar-hover': '#6a6d6e',
+      'st-modified': '#6897bb',
+      'st-added': '#629755',
+      'st-deleted': '#6e6e6e',
+      'st-unversioned': '#d1675a',
+      'st-conflict': '#d5756c',
+      'st-moved': '#3a8484',
+    },
+    monaco: {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [
+        { token: '', foreground: 'a9b7c6', background: '2b2b2b' },
+        { token: 'comment', foreground: '808080' },
+        { token: 'keyword', foreground: 'cc7832' },
+        { token: 'number', foreground: '6897bb' },
+        { token: 'string', foreground: '6a8759' },
+        { token: 'type', foreground: 'ffc66d' },
+        { token: 'tag', foreground: 'e8bf6a' },
+      ],
+      colors: {
+        'editor.background': '#2b2b2b',
+        'editor.foreground': '#a9b7c6',
+        'editor.lineHighlightBackground': '#323232',
+        'editorLineNumber.foreground': '#606366',
+        'editorGutter.background': '#313335',
+        'editor.selectionBackground': '#214283',
+        'diffEditor.insertedTextBackground': '#29443626',
+        'diffEditor.insertedLineBackground': '#29443680',
+        'diffEditor.removedTextBackground': '#48373526',
+        'diffEditor.removedLineBackground': '#40353580',
+        'diffEditorGutter.insertedLineBackground': '#294436',
+        'diffEditorGutter.removedLineBackground': '#403535',
+        'scrollbarSlider.background': '#5a5d5e66',
+        'scrollbarSlider.hoverBackground': '#6a6d6e88',
+      },
+    },
+  },
+};
