@@ -51,9 +51,46 @@ working-tree changes in any Git repository.
 - **Commit tool window** — commit message box, Amend checkbox (pre-fills
   the last message), Commit / Commit and Push buttons. Commits are
   pathspec-limited to the checked files, so anything staged from the CLI
-  that you didn't check stays out of the commit.
+  that you didn't check stays out of the commit (merge commits record the
+  whole index, as git requires). A filter box narrows the tree in big
+  changesets, and the tree is windowed so repositories with thousands of
+  changed files stay responsive.
+- **Partial (per-hunk) staging** — every diff hunk gets a checkbox in the
+  editor gutter. Unchecked hunks stay out of the commit and survive as
+  local modifications: the commit is recorded through a temporary index
+  (respecting `.gitattributes` filters), never touching your real index.
+  Amending preserves the original author and date.
+- **Commit message assistance** — subject-line length hint (50/72),
+  history of previous commit messages (`⌘E`), and pre-filling from the
+  repository's `commit.template`.
+- **Branches, pull & fetch** — click the branch in the status bar (or
+  `⌘B`) for an IntelliJ-style popup: filter, switch, check out remote
+  branches, or create a new branch from the search text. Pull (`⌘T`),
+  fetch, and ahead/behind arrows next to the branch name.
+- **Log tab** — commit history with a lane graph, branch/tag chips,
+  author and age columns, and infinite scroll. Click a commit for its
+  message, metadata, and changed files; click a file for a read-only diff
+  of that revision. Right-click a changed file for **Show History** — the
+  log filtered to that file (following renames).
+- **Merge conflict resolution** — conflicted files open in a resolve
+  editor: ours/theirs regions highlighted and labeled with the real branch
+  names, per-conflict **Accept Ours / Accept Theirs / Accept Both**
+  codelens actions, whole-file accept buttons, conflict navigation, and
+  **Mark Resolved** to stage the result.
+- **Stash** — a dialog over `git stash`: stash with a message (optionally
+  including untracked files), then pop, apply, or drop from the list.
+- **Blame annotations** — toggle inline `git blame` (author, date, commit)
+  at the end of every line of the diff.
+- **Image diff** — changed PNGs/JPEGs/GIFs/WebP/ICOs show a side-by-side
+  image preview on a checkerboard with dimensions; SVGs diff as text with
+  a preview toggle.
 - **Rollback** — IntelliJ semantics: tracked files revert to HEAD, renames
   are undone, unversioned files are deleted (with confirmation).
+- **Multi-repo** — the titlebar is a repo switcher with recent
+  repositories; linked git worktrees are detected and badged. A repository
+  path on the command line (or dropped on the dock icon) opens directly,
+  and **Install Command Line Launcher…** adds a `diffier` command. The
+  dock badge shows the changed-file count.
 - **Live updates** — a file watcher refreshes the tree when the working
   tree or `.git` changes (commits from a terminal show up immediately).
 
@@ -81,13 +118,21 @@ tooltips. Tree navigation (`↑` `↓` `←` `→` `Space` `⏎`) is fixed.
 | `⌘K` | Commit (focus the message box) |
 | `⌘⏎` | Commit checked files |
 | `⌥⌘⏎` | Commit and Push |
+| `⌘E` | Commit message history |
 | `⌘⇧K` | Push |
+| `⌘T` | Pull |
+| `⌘B` | Branches popup |
+| `⌘9` | Log tool window |
+| `⌘⇧F` | Filter changes |
 | `⌥⌘Z` | Rollback selected file / directory |
 | `⌘S` | Save the edited file |
 | `⌘0` | Toggle the commit tool window |
 | `⌘O` | Open a repository |
 | `⌘R` | Refresh file status |
 | `⌘,` | Settings (theme + keymap) |
+
+Fetch, Stash, and Blame Annotations are unbound by default — bind them in
+Settings or use the **Git** / **View** menus.
 
 ## Running
 
@@ -111,18 +156,23 @@ npm run dist        # produces dist/Diffier-<version>.dmg and .zip
 
 - `npm test` — integration tests for the Git layer (`main/git.js`) against
   a throwaway repository (status parsing for every change type, renames,
-  diffs, partial commits, amend, rollback, binary detection, path-escape
-  protection) plus unit tests for the keymap module (normalization,
-  accelerator conversion, default-conflict check), the theme registry
-  (complete/consistent variable sets, valid colors, dark/light sanity),
-  and language detection (grammar shape, extension-collision check,
-  shiki-grammar existence, detection with and without the shiki bundle).
+  diffs, pathspec and per-hunk partial commits, amend author preservation,
+  merge-commit fallback, log/commit details, branches, stash, blame,
+  conflict stages and resolution, worktree detection, rollback, binary
+  detection, path-escape protection) plus unit tests for the keymap module
+  (normalization, accelerator conversion, default-conflict check), the
+  theme registry (complete/consistent variable sets, valid colors,
+  dark/light sanity), and language detection (grammar shape,
+  extension-collision check, shiki-grammar existence, detection with and
+  without the shiki bundle).
 - `node test/ui.test.js` — end-to-end UI test. The renderer talks to the
   main process only through `window.api`, so the test serves the renderer
   over HTTP with an RPC shim backed by the real Git layer and drives the
-  full flow (tree, F7 navigation, editing + autosave, commit, rollback)
-  with Playwright. Set `DIFFIER_CHROMIUM` to your Chromium binary if it is
-  not at `/opt/pw-browsers/chromium`.
+  full flow (tree, F7 navigation, editing + autosave, commit, rollback,
+  hunk staging, blame, file history, log details, filtering, stash,
+  branch create/switch, conflict resolution) with Playwright. Set
+  `DIFFIER_CHROMIUM` to your Chromium binary if it is not at
+  `/opt/pw-browsers/chromium`.
 - `npm run smoke` — boots the real Electron app, loads the repo from
   `DIFFIER_SMOKE_REPO`, and fails on any renderer error.
 

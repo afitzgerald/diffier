@@ -112,6 +112,179 @@ async function main() {
   const stEmpty = await gitlib.status(tmp2);
   assert.strictEqual(stEmpty.hasHead, false);
   assert.strictEqual(stEmpty.files.length, 0);
+  assert.deepStrictEqual(await gitlib.log(tmp2, {}), []);
+  assert.deepStrictEqual(await gitlib.stashList(tmp2), []);
+  assert.strictEqual(await gitlib.aheadBehind(tmp2), null);
+
+  // ---------------------------------------------------------- log & details
+  const lg = await gitlib.log(tmp, {});
+  assert.strictEqual(lg.length, 2);
+  assert.strictEqual(lg[0].subject, 'partial commit v2');
+  assert.strictEqual(lg[1].subject, 'seed');
+  assert.strictEqual(lg[1].parents.length, 0, 'root commit has no parents');
+  assert.strictEqual(lg[0].parents.length, 1);
+  assert.ok(lg[0].refs.includes('main'));
+  assert.ok(lg[0].time > 0);
+
+  const paged = await gitlib.log(tmp, { skip: 1, limit: 1 });
+  assert.strictEqual(paged.length, 1);
+  assert.strictEqual(paged[0].hash, lg[1].hash);
+
+  const det = await gitlib.commitDetails(tmp, lg[0].hash);
+  assert.strictEqual(det.hash, lg[0].hash);
+  assert.strictEqual(det.message, 'partial commit v2');
+  assert.ok(det.files.some((f) => f.path === 'src/app.js'));
+  const rootDet = await gitlib.commitDetails(tmp, lg[1].hash);
+  assert.ok(rootDet.files.every((f) => f.type === 'ADDED'), 'root commit files are ADDED');
+
+  const cfd = await gitlib.commitFileDiff(tmp, lg[0].hash, 'src/app.js', 'MODIFIED', null);
+  assert.strictEqual(cfd.modified, 'edited\n');
+  assert.strictEqual(cfd.original, 'line1\nline2\nline3\n');
+
+  // File history follows the file (both commits touched src/app.js).
+  const hist = await gitlib.log(tmp, { path: 'src/app.js' });
+  assert.strictEqual(hist.length, 2);
+
+  // ------------------------------------------------------------- branches
+  run('branch', 'feature');
+  const br = await gitlib.branches(tmp);
+  assert.strictEqual(br.current, 'main');
+  assert.deepStrictEqual(br.locals.map((b) => b.name).sort(), ['feature', 'main']);
+  assert.ok(br.locals.find((b) => b.name === 'main').current);
+  assert.ok(!br.locals.find((b) => b.name === 'feature').current);
+
+  await gitlib.checkout(tmp, 'feature');
+  assert.strictEqual(await gitlib.currentBranch(tmp), 'feature');
+  await gitlib.createBranch(tmp, 'experiment');
+  assert.strictEqual(await gitlib.currentBranch(tmp), 'experiment');
+  await gitlib.checkout(tmp, 'main');
+
+  // -------------------------------------------------------- partial commit
+  fs.writeFileSync(
+    path.join(tmp, 'src/app.js'),
+    'TOP\nmid1\nmid2\nmid3\nmid4\nmid5\nmid6\nmid7\nBOTTOM\n'
+  );
+  run('add', 'src/app.js');
+  run('commit', '-m', 'base for partial');
+  fs.writeFileSync(
+    path.join(tmp, 'src/app.js'),
+    'TOP-changed\nmid1\nmid2\nmid3\nmid4\nmid5\nmid6\nmid7\nBOTTOM-changed\n'
+  );
+  // Commit only the first hunk; the second stays a local modification.
+  const partialContent =
+    'TOP-changed\nmid1\nmid2\nmid3\nmid4\nmid5\nmid6\nmid7\nBOTTOM\n';
+  await gitlib.commit(tmp, [], 'first hunk only', false, [
+    { path: 'src/app.js', content: partialContent },
+  ]);
+  assert.strictEqual(run('show', 'HEAD:src/app.js'), partialContent);
+  assert.strictEqual((await gitlib.lastCommitMessage(tmp)).trim(), 'first hunk only');
+  const stPartial = await gitlib.status(tmp);
+  const appEntry = stPartial.files.find((f) => f.path === 'src/app.js');
+  assert.ok(appEntry, 'remaining hunk keeps the file modified');
+  assert.strictEqual(appEntry.type, 'MODIFIED');
+  assert.strictEqual(appEntry.xy, 'M', 'remaining change is unstaged only');
+
+  // Mixed full + partial in one commit, and amend keeps the message/count
+  // and the original author identity and date.
+  const authorBefore = run('log', '-1', '--pretty=%an|%ae|%aI').trim();
+  fs.writeFileSync(path.join(tmp, 'extra.txt'), 'extra\n');
+  const before = Number(run('rev-list', '--count', 'HEAD').trim());
+  await gitlib.commit(tmp, ['extra.txt'], '', true, [
+    {
+      path: 'src/app.js',
+      content:
+        'TOP-changed\nmid1\nmid2\nmid3\nmid4\nmid5\nmid6\nmid7\nBOTTOM-changed\n',
+    },
+  ]);
+  assert.strictEqual((await gitlib.lastCommitMessage(tmp)).trim(), 'first hunk only');
+  assert.strictEqual(Number(run('rev-list', '--count', 'HEAD').trim()), before);
+  assert.strictEqual((await gitlib.status(tmp)).files.length, 0, 'clean after amend');
+  assert.strictEqual(
+    run('log', '-1', '--pretty=%an|%ae|%aI').trim(),
+    authorBefore,
+    'amend must not rewrite author identity or date'
+  );
+
+  // ----------------------------------------------------------------- stash
+  fs.writeFileSync(path.join(tmp, 'src/app.js'), 'stashed change\n');
+  fs.writeFileSync(path.join(tmp, 'wip.txt'), 'wip\n');
+  await gitlib.stashPush(tmp, 'wip: test stash', true);
+  assert.strictEqual((await gitlib.status(tmp)).files.length, 0);
+  const stashes = await gitlib.stashList(tmp);
+  assert.strictEqual(stashes.length, 1);
+  assert.strictEqual(stashes[0].ref, 'stash@{0}');
+  assert.ok(stashes[0].message.includes('wip: test stash'));
+  assert.ok(stashes[0].time > 0);
+  await gitlib.stashApply(tmp, 'stash@{0}');
+  assert.strictEqual((await gitlib.status(tmp)).files.length, 2);
+  await gitlib.rollback(tmp, (await gitlib.status(tmp)).files);
+  await gitlib.stashPop(tmp, 'stash@{0}');
+  assert.strictEqual((await gitlib.status(tmp)).files.length, 2);
+  assert.deepStrictEqual(await gitlib.stashList(tmp), []);
+  await gitlib.stashPush(tmp, 'to drop', true);
+  await gitlib.stashDrop(tmp, 'stash@{0}');
+  assert.deepStrictEqual(await gitlib.stashList(tmp), []);
+
+  // ----------------------------------------------------------------- blame
+  const bl = await gitlib.blame(tmp, 'src/app.js');
+  assert.strictEqual(bl.length, 9);
+  assert.strictEqual(bl[0].author, 'Test');
+  assert.strictEqual(bl[0].sha.length, 8);
+  assert.ok(!bl[0].uncommitted);
+  fs.appendFileSync(path.join(tmp, 'src/app.js'), 'brand new line\n');
+  const bl2 = await gitlib.blame(tmp, 'src/app.js');
+  assert.ok(bl2[bl2.length - 1].uncommitted, 'appended line is uncommitted');
+  run('checkout', '--', 'src/app.js');
+
+  // -------------------------------------------------------------- conflict
+  run('checkout', '-b', 'side');
+  fs.writeFileSync(path.join(tmp, 'src/app.js'), 'SIDE\nmid1\nmid2\nmid3\nmid4\nmid5\nmid6\nmid7\nBOTTOM-changed\n');
+  run('commit', '-am', 'side edit');
+  run('checkout', 'main');
+  fs.writeFileSync(path.join(tmp, 'src/app.js'), 'MAIN\nmid1\nmid2\nmid3\nmid4\nmid5\nmid6\nmid7\nBOTTOM-changed\n');
+  run('commit', '-am', 'main edit');
+  try {
+    run('merge', 'side');
+  } catch {
+    /* conflict expected */
+  }
+  const stConf = await gitlib.status(tmp);
+  assert.strictEqual(stConf.files[0].type, 'CONFLICT');
+  const ci = await gitlib.conflictInfo(tmp, 'src/app.js');
+  assert.ok(ci.ours.startsWith('MAIN'));
+  assert.ok(ci.theirs.startsWith('SIDE'));
+  assert.ok(ci.base != null, 'merge base stage present');
+  assert.ok(ci.worktree.includes('<<<<<<<'));
+  assert.strictEqual(ci.oursLabel, 'main');
+  assert.strictEqual(ci.theirsLabel, 'side');
+  await gitlib.markResolved(tmp, 'src/app.js', 'RESOLVED\n');
+  assert.ok(!(await gitlib.status(tmp)).files.some((f) => f.type === 'CONFLICT'));
+  // Committing while a merge concludes: git forbids pathspec-limited commits
+  // here, so commit() must fall back to a whole-index merge commit.
+  await gitlib.commit(tmp, ['src/app.js'], 'merge resolved', false);
+  assert.strictEqual((await gitlib.lastCommitMessage(tmp)).trim(), 'merge resolved');
+  // ...and per-hunk commits must be refused mid-merge rather than recording
+  // a commit that silently drops the MERGE_HEAD parent.
+  try {
+    run('merge', '--abort');
+  } catch {
+    /* merge already concluded */
+  }
+  const mergeDet = await gitlib.commitDetails(
+    tmp,
+    (await gitlib.log(tmp, { limit: 1 }))[0].hash
+  );
+  assert.strictEqual(mergeDet.parents.length, 2, 'merge commit has two parents');
+
+  // path escape protection on the new entry points
+  await assert.rejects(() => gitlib.markResolved(tmp, '../oops.txt', 'x'));
+
+  // ------------------------------------------------------------- worktree
+  assert.strictEqual(await gitlib.isLinkedWorktree(tmp), false);
+  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'diffier-wt-'));
+  fs.rmSync(wt, { recursive: true });
+  run('worktree', 'add', wt, 'feature');
+  assert.strictEqual(await gitlib.isLinkedWorktree(wt), true);
 
   console.log('git.test.js OK');
 }
