@@ -61,6 +61,7 @@ const ACTION_IMPL: Partial<Record<ActionId, () => void>> = {
   },
   annotate: () => toggleBlame(),
   'keymap-settings': () => toggleKeymapDialog(),
+  'about-dialog': () => toggleAboutDialog(),
 };
 
 function runAction(id: ActionId | string): void {
@@ -146,6 +147,15 @@ window.addEventListener(
       if (e.key === 'Escape') {
         e.preventDefault();
         closeKeymapDialog();
+      }
+      return;
+    }
+
+    // While the About dialog is open, only Escape (close) is handled.
+    if (aboutOpen) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeAboutDialog();
       }
       return;
     }
