@@ -187,9 +187,28 @@ main/
   themes.js    Theme definitions (CSS variables + Monaco colors)
   preload.js   contextBridge API — the renderer has no Node access
 renderer/
-  index.html   Layout: commit panel, diff toolbar, Monaco container
+  index.html   Layout: commit panel, log view, diff toolbar, popups/dialogs
   styles.css   Themeable styles (CSS variables) + islands/classic layouts
-  app.js       Tree model, Monaco diff editor, keymap, themes, commit flow
+  app/         Renderer modules — classic scripts sharing the global scope,
+               loaded in dependency order (see index.html):
+    core.js            Shared state, DOM helpers, toast/status utilities
+    theme.js           Theme application and shiki theme mapping
+    keymap.js          Keybinding state, normalization, event matching
+    editor.js          Monaco bootstrap, diff editor, language detection
+    staging.js         Partial (per-hunk) staging and commit selection
+    tree.js            Changes tree: model, windowed rendering, filter
+    diff-view.js       Diff pane: worktree/commit diffs, image preview
+    conflict.js        Merge conflict resolution editor
+    blame.js           Inline git blame annotations
+    navigation.js      IntelliJ F7-style difference navigation
+    repo.js            Repository lifecycle: status refresh, setRepo
+    git-actions.js     Commit, push, pull, fetch, rollback
+    popups.js          Popup infra, branch popup, msg history, repo switcher
+    stash.js           Stash dialog
+    log.js             Log tab: lane graph, commit details, file history
+    actions.js         Action registry and global keyboard handling
+    settings-dialog.js Settings dialog: theme picker and keymap editor
+    boot.js            Menu IPC, toolbar wiring, splitter, startup
   languages.js Language metadata: detection, aliases, Monarch fallbacks
   highlighter-entry.mjs
                Shiki bundle source (esbuild → renderer/highlighter.js on

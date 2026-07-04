@@ -144,6 +144,36 @@ function imageMime(relPath) {
   return IMAGE_MIME[path.extname(relPath).toLowerCase()] || null;
 }
 
+// Classify a pair of file versions into the diff payload shape shared by
+// fileDiff (HEAD vs worktree) and commitFileDiff (parent vs commit): binary
+// with an optional side-by-side image preview, too large, or plain text
+// (SVGs additionally carry an image payload for the preview toggle).
+function classifyDiff(origBuf, modBuf, relPath) {
+  const mime = imageMime(relPath);
+  const imagePayload = () => ({
+    image: true,
+    imageMime: mime,
+    originalImage: origBuf.length ? origBuf.toString('base64') : null,
+    modifiedImage: modBuf.length ? modBuf.toString('base64') : null,
+  });
+  if (looksBinary(origBuf) || looksBinary(modBuf)) {
+    if (mime && origBuf.length <= MAX_IMAGE_BYTES && modBuf.length <= MAX_IMAGE_BYTES) {
+      return { binary: true, original: '', modified: '', ...imagePayload() };
+    }
+    return { binary: true, original: '', modified: '' };
+  }
+  if (origBuf.length > MAX_DIFF_BYTES || modBuf.length > MAX_DIFF_BYTES) {
+    return { tooLarge: true, binary: false, original: '', modified: '' };
+  }
+  const result = {
+    binary: false,
+    original: origBuf.toString('utf8'),
+    modified: modBuf.toString('utf8'),
+  };
+  if (mime === 'image/svg+xml') Object.assign(result, imagePayload());
+  return result;
+}
+
 // HEAD version vs. working-tree version of one file (IntelliJ's default
 // "compare with local" for the commit tool window).
 async function fileDiff(root, relPath, type, origPath) {
@@ -166,40 +196,7 @@ async function fileDiff(root, relPath, type, origPath) {
     }
   }
 
-  if (looksBinary(origBuf) || looksBinary(modBuf)) {
-    const mime = imageMime(relPath);
-    if (mime && origBuf.length <= MAX_IMAGE_BYTES && modBuf.length <= MAX_IMAGE_BYTES) {
-      return {
-        binary: true,
-        image: true,
-        imageMime: mime,
-        originalImage: origBuf.length ? origBuf.toString('base64') : null,
-        modifiedImage: modBuf.length ? modBuf.toString('base64') : null,
-        original: '',
-        modified: '',
-        absPath: abs,
-      };
-    }
-    return { binary: true, original: '', modified: '', absPath: abs };
-  }
-  if (origBuf.length > MAX_DIFF_BYTES || modBuf.length > MAX_DIFF_BYTES) {
-    return { tooLarge: true, binary: false, original: '', modified: '', absPath: abs };
-  }
-  const result = {
-    binary: false,
-    original: origBuf.toString('utf8'),
-    modified: modBuf.toString('utf8'),
-    absPath: abs,
-  };
-  // SVGs are text (diffable) but also previewable as images.
-  const mime = imageMime(relPath);
-  if (mime === 'image/svg+xml') {
-    result.image = true;
-    result.imageMime = mime;
-    result.originalImage = origBuf.length ? origBuf.toString('base64') : null;
-    result.modifiedImage = modBuf.length ? modBuf.toString('base64') : null;
-  }
-  return result;
+  return { ...classifyDiff(origBuf, modBuf, relPath), absPath: abs };
 }
 
 // Resolve relPath inside the repository or throw.
@@ -546,29 +543,7 @@ async function commitFileDiff(root, hash, relPath, type, origPath, ref2) {
       modBuf = await showFileAt(root, ref2 || hash, relPath);
     }
   }
-  if (looksBinary(origBuf) || looksBinary(modBuf)) {
-    const mime = imageMime(relPath);
-    if (mime && origBuf.length <= MAX_IMAGE_BYTES && modBuf.length <= MAX_IMAGE_BYTES) {
-      return {
-        binary: true,
-        image: true,
-        imageMime: mime,
-        originalImage: origBuf.length ? origBuf.toString('base64') : null,
-        modifiedImage: modBuf.length ? modBuf.toString('base64') : null,
-        original: '',
-        modified: '',
-      };
-    }
-    return { binary: true, original: '', modified: '' };
-  }
-  if (origBuf.length > MAX_DIFF_BYTES || modBuf.length > MAX_DIFF_BYTES) {
-    return { tooLarge: true, binary: false, original: '', modified: '' };
-  }
-  return {
-    binary: false,
-    original: origBuf.toString('utf8'),
-    modified: modBuf.toString('utf8'),
-  };
+  return classifyDiff(origBuf, modBuf, relPath);
 }
 
 // ------------------------------------------------------------------- stash

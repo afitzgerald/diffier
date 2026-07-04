@@ -228,9 +228,29 @@
 
   <script src="../node_modules/monaco-editor/min/vs/loader.js"></script>
   <script src="languages.js"></script>
-  <!-- Optional shiki bundle (built on postinstall); app.js falls back to
+  <!-- Optional shiki bundle (built on postinstall); the app falls back to
        Monarch grammars when absent, so a 404 here is non-fatal. -->
   <script src="highlighter.js"></script>
-  <script src="app.js"></script>
+  <!-- Renderer modules. Classic scripts share the global lexical scope, so
+       load order matters: state/utilities first, feature modules in
+       dependency order, boot last. -->
+  <script src="app/core.js"></script>
+  <script src="app/theme.js"></script>
+  <script src="app/keymap.js"></script>
+  <script src="app/editor.js"></script>
+  <script src="app/staging.js"></script>
+  <script src="app/tree.js"></script>
+  <script src="app/diff-view.js"></script>
+  <script src="app/conflict.js"></script>
+  <script src="app/blame.js"></script>
+  <script src="app/navigation.js"></script>
+  <script src="app/repo.js"></script>
+  <script src="app/git-actions.js"></script>
+  <script src="app/popups.js"></script>
+  <script src="app/stash.js"></script>
+  <script src="app/log.js"></script>
+  <script src="app/actions.js"></script>
+  <script src="app/settings-dialog.js"></script>
+  <script src="app/boot.js"></script>
 </body>
 </html>
