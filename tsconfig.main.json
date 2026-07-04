@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "types": ["node", "electron"],
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["main/**/*.ts"]
+}

@@ -3,22 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' blob: data:; font-src 'self' data:; img-src 'self' data:; worker-src 'self' blob: data:;" />
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; img-src 'self' data:; worker-src 'self';" />
   <title>Diffier</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div id="titlebar">
-    <div id="titlebar-repo"></div>
+    <div id="titlebar-center">
+      <div id="titlebar-repo" title="Recent repositories"></div>
+      <span id="titlebar-worktree" class="hidden" title="This checkout is a linked git worktree">worktree</span>
+    </div>
   </div>
 
   <div id="main">
     <div id="commit-panel">
       <div class="panel-header">
-        <span class="panel-title">Commit</span>
+        <span class="panel-tabs">
+          <button class="panel-tab active" id="tab-commit" data-view="commit">Commit</button>
+          <button class="panel-tab" id="tab-log" data-view="log">Log</button>
+        </span>
         <span class="panel-actions">
           <button class="icon-btn" id="btn-refresh" title="Refresh File Status">⟳</button>
+          <button class="icon-btn" id="btn-stash" title="Stash / Unstash…">⇣</button>
           <button class="icon-btn" id="btn-rollback" title="Rollback…">↩</button>
           <button class="icon-btn" id="btn-expand-all" title="Expand All">＋</button>
           <button class="icon-btn" id="btn-collapse-all" title="Collapse All">－</button>
@@ -26,21 +33,44 @@
         </span>
       </div>
 
-      <div id="tree" tabindex="0" aria-label="Changed files"></div>
-
-      <div id="commit-area">
-        <textarea id="commit-message" placeholder="Commit Message" rows="4"
-                  spellcheck="false"></textarea>
-        <div id="commit-options">
-          <label class="checkbox-label">
-            <input type="checkbox" id="amend-checkbox" />
-            <span>Amend</span>
-          </label>
-          <span id="commit-count" class="dim"></span>
+      <div id="commit-view">
+        <div id="tree-filter-row">
+          <input id="tree-filter" type="text" placeholder="Filter changes…" spellcheck="false" />
+          <button class="icon-btn hidden" id="tree-filter-clear" title="Clear filter">✕</button>
         </div>
-        <div id="commit-buttons">
-          <button id="btn-commit" class="primary" title="Commit (⌘⏎)">Commit</button>
-          <button id="btn-commit-push" title="Commit and Push (⌥⌘⏎)">Commit and Push…</button>
+
+        <div id="tree" tabindex="0" aria-label="Changed files"></div>
+
+        <div id="commit-area">
+          <textarea id="commit-message" placeholder="Commit Message" rows="4"
+                    spellcheck="false"></textarea>
+          <div id="commit-options">
+            <label class="checkbox-label">
+              <input type="checkbox" id="amend-checkbox" />
+              <span>Amend</span>
+            </label>
+            <button class="icon-btn" id="btn-msg-history" title="Commit Message History (⌘E)">🕘</button>
+            <span id="subject-length" class="dim" title="Subject line length"></span>
+            <span class="spacer"></span>
+            <span id="commit-count" class="dim"></span>
+          </div>
+          <div id="commit-buttons">
+            <button id="btn-commit" class="primary" title="Commit (⌘⏎)">Commit</button>
+            <button id="btn-commit-push" title="Commit and Push (⌥⌘⏎)">Commit and Push…</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="log-view" class="hidden">
+        <div id="log-file-filter" class="hidden">
+          <span id="log-file-filter-label"></span>
+          <button class="icon-btn" id="log-file-filter-clear" title="Show full history">✕</button>
+        </div>
+        <div id="log-list" tabindex="0" aria-label="Commits"></div>
+        <div id="log-details" class="hidden">
+          <div id="log-details-header"></div>
+          <div id="log-details-meta"></div>
+          <div id="log-details-files"></div>
         </div>
       </div>
     </div>
@@ -66,10 +96,36 @@
             <option value="side">Side-by-Side Viewer</option>
             <option value="unified">Unified Viewer</option>
           </select>
-          <button class="icon-btn" id="btn-whitespace" title="Ignore Whitespace">⎵</button>
+          <button class="icon-btn" id="btn-whitespace" title="Ignore Leading/Trailing Whitespace">⎵</button>
+          <button class="icon-btn" id="btn-collapse-unchanged" title="Collapse Unchanged Regions">⇕</button>
+          <button class="icon-btn" id="btn-blame" title="Blame Annotations">👤</button>
+          <button class="icon-btn hidden" id="btn-image-view" title="Toggle Image Preview">🖼</button>
         </div>
       </div>
+      <div id="conflict-bar" class="hidden">
+        <span id="conflict-count"></span>
+        <button class="icon-btn" id="btn-prev-conflict" title="Previous Conflict">↑</button>
+        <button class="icon-btn" id="btn-next-conflict" title="Next Conflict">↓</button>
+        <span class="toolbar-sep"></span>
+        <button id="btn-all-ours"></button>
+        <button id="btn-all-theirs"></button>
+        <span class="spacer"></span>
+        <button id="btn-mark-resolved" class="primary">Mark Resolved</button>
+      </div>
       <div id="diff-editor"></div>
+      <div id="conflict-editor" class="hidden"></div>
+      <div id="image-diff" class="hidden">
+        <div class="image-pane">
+          <div class="image-pane-title">Old</div>
+          <div class="image-holder"><img id="image-old" alt="" /><span class="image-missing hidden" id="image-old-missing">(none)</span></div>
+          <div class="image-caption dim" id="image-old-caption"></div>
+        </div>
+        <div class="image-pane">
+          <div class="image-pane-title">New</div>
+          <div class="image-holder"><img id="image-new" alt="" /><span class="image-missing hidden" id="image-new-missing">(none)</span></div>
+          <div class="image-caption dim" id="image-new-caption"></div>
+        </div>
+      </div>
       <div id="diff-empty">
         <div id="diff-empty-inner">
           <div class="big">Diffier</div>
@@ -91,11 +147,56 @@
     <span id="status-path" class="dim"></span>
     <span id="status-right">
       <span id="status-message"></span>
-      <span id="status-branch"></span>
+      <span id="status-track" class="dim" title="Ahead / behind upstream"></span>
+      <span id="status-branch" title="Branches (⌘B)"></span>
     </span>
   </div>
 
   <div id="toast"></div>
+
+  <!-- Branch popup (anchored bottom-right, IntelliJ ⌃V style) -->
+  <div id="branch-popup" class="popup hidden">
+    <input id="branch-filter" type="text" placeholder="Search branches / new branch name…" spellcheck="false" />
+    <div id="branch-list"></div>
+    <div class="popup-footer dim">⏎ checkout · ⌘⏎ create new branch</div>
+  </div>
+
+  <!-- Commit message history popup -->
+  <div id="msg-history-popup" class="popup hidden">
+    <div class="popup-title">Commit Message History</div>
+    <div id="msg-history-list"></div>
+  </div>
+
+  <!-- Repo switcher popup -->
+  <div id="repo-popup" class="popup hidden">
+    <div id="repo-list"></div>
+  </div>
+
+  <!-- Tree context menu -->
+  <div id="context-menu" class="popup hidden"></div>
+
+  <!-- Stash dialog -->
+  <div id="stash-overlay" class="overlay hidden">
+    <div class="dialog" id="stash-dialog">
+      <div class="dialog-header"><span>Stash</span></div>
+      <div class="stash-push-row">
+        <input id="stash-message" type="text" placeholder="Stash message (optional)" spellcheck="false" />
+        <button id="btn-stash-push" class="primary">Stash</button>
+      </div>
+      <div class="stash-push-opts">
+        <label class="checkbox-label">
+          <input type="checkbox" id="stash-untracked" checked />
+          <span>Include untracked files</span>
+        </label>
+      </div>
+      <div class="dialog-section">Stashes</div>
+      <div id="stash-list"></div>
+      <div class="dialog-footer">
+        <span class="dialog-spacer"></span>
+        <button id="stash-done" class="primary">Done</button>
+      </div>
+    </div>
+  </div>
 
   <div id="keymap-overlay" class="hidden">
     <div id="keymap-dialog">
@@ -127,9 +228,29 @@
 
   <script src="../node_modules/monaco-editor/min/vs/loader.js"></script>
   <script src="languages.js"></script>
-  <!-- Optional shiki bundle (built on postinstall); app.js falls back to
+  <!-- Optional shiki bundle (built on postinstall); the app falls back to
        Monarch grammars when absent, so a 404 here is non-fatal. -->
   <script src="highlighter.js"></script>
-  <script src="app.js"></script>
+  <!-- Renderer modules. Classic scripts share the global lexical scope, so
+       load order matters: state/utilities first, feature modules in
+       dependency order, boot last. -->
+  <script src="app/core.js"></script>
+  <script src="app/theme.js"></script>
+  <script src="app/keymap.js"></script>
+  <script src="app/editor.js"></script>
+  <script src="app/staging.js"></script>
+  <script src="app/tree.js"></script>
+  <script src="app/diff-view.js"></script>
+  <script src="app/conflict.js"></script>
+  <script src="app/blame.js"></script>
+  <script src="app/navigation.js"></script>
+  <script src="app/repo.js"></script>
+  <script src="app/git-actions.js"></script>
+  <script src="app/popups.js"></script>
+  <script src="app/stash.js"></script>
+  <script src="app/log.js"></script>
+  <script src="app/actions.js"></script>
+  <script src="app/settings-dialog.js"></script>
+  <script src="app/boot.js"></script>
 </body>
 </html>
