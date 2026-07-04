@@ -203,20 +203,26 @@
       <div class="dialog-header">
         <span>Settings</span>
       </div>
-      <div class="dialog-section">Appearance</div>
-      <div class="settings-row">
-        <span class="keymap-label">Theme</span>
-        <select id="theme-select"></select>
-      </div>
-      <div class="dialog-section">
-        Keymap
-        <span class="dim">— click a shortcut, then press the new key combination</span>
-      </div>
-      <div id="keymap-list"></div>
-      <div class="dialog-note dim">
-        Tree navigation (<kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd>
-        <kbd>Space</kbd> <kbd>⏎</kbd>) is fixed. Recording: press
-        <kbd>Esc</kbd> to cancel.
+      <div class="dialog-body">
+        <section class="settings-panel">
+          <h3 class="settings-panel-title">Appearance</h3>
+          <div class="settings-row">
+            <span class="keymap-label">Theme</span>
+            <select id="theme-select"></select>
+          </div>
+        </section>
+        <section class="settings-panel">
+          <div class="settings-panel-header">
+            <h3 class="settings-panel-title">Keymap</h3>
+            <span class="dim">— click a shortcut, then press the new key combination</span>
+          </div>
+          <div id="keymap-list"></div>
+        </section>
+        <div class="dialog-note dim">
+          Tree navigation (<kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd>
+          <kbd>Space</kbd> <kbd>⏎</kbd>) is fixed. Recording: press
+          <kbd>Esc</kbd> to cancel.
+        </div>
       </div>
       <div class="dialog-footer">
         <button id="keymap-reset-all">Reset All to Defaults</button>
