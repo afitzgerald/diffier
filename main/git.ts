@@ -598,7 +598,13 @@ export async function isLinkedWorktree(root: string): Promise<boolean> {
     const gitDir = (await git(root, ['rev-parse', '--absolute-git-dir'])).trim();
     const commonDir = (await git(root, ['rev-parse', '--git-common-dir'])).trim();
     const absCommon = path.isAbsolute(commonDir) ? commonDir : path.join(root, commonDir);
-    return path.resolve(gitDir) !== path.resolve(absCommon);
+    // --absolute-git-dir resolves symlinks (e.g. macOS /tmp -> /private/tmp);
+    // realpath both sides so a symlinked root doesn't look like a linked worktree.
+    const [realGitDir, realCommon] = await Promise.all([
+      fs.realpath(gitDir).catch(() => path.resolve(gitDir)),
+      fs.realpath(absCommon).catch(() => path.resolve(absCommon)),
+    ]);
+    return realGitDir !== realCommon;
   } catch {
     return false;
   }
