@@ -15,7 +15,7 @@
 // `monaco` field below the exact shape monaco.editor.defineTheme() expects.
 import type { editor } from 'monaco-editor';
 
-export type ThemeId = 'islands-dark' | 'islands-light' | 'darcula';
+export type ThemeId = 'islands-dark' | 'islands-light' | 'darcula' | 'diffier-dark';
 export type ThemeStyle = 'islands' | 'classic';
 
 export interface Theme {
@@ -229,6 +229,77 @@ export const THEMES: Record<ThemeId, Theme> = {
         'diffEditorGutter.removedLineBackground': '#403535',
         'scrollbarSlider.background': '#5a5d5e66',
         'scrollbarSlider.hoverBackground': '#6a6d6e88',
+      },
+    },
+  },
+
+  // Ported from the "Diffier Design System" Stitch project (brand green
+  // #5CC23A on deep charcoal). Git status colors are repurposed from the
+  // design system's diff/semantic palette since it defines no blue/teal.
+  'diffier-dark': {
+    id: 'diffier-dark',
+    label: 'Diffier Dark',
+    style: 'islands',
+    vars: {
+      'window-bg': '#0b0e14',
+      bg: '#101319',
+      'panel-bg': '#161b22',
+      border: '#30363d',
+      'border-light': '#272a31',
+      text: '#c5c6cc',
+      'text-bright': '#e1e2eb',
+      dim: '#899480',
+      hover: '#1d2026',
+      selection: '#1d6d00',
+      'selection-inactive': '#272a31',
+      'selection-fg': '#e1e2eb',
+      accent: '#77df53',
+      'btn-bg': '#1d2026',
+      'btn-hover': '#272a31',
+      'btn-primary': '#5cc23a',
+      'btn-primary-hover': '#77df53',
+      'btn-primary-border': '#5cc23a',
+      'input-bg': '#0b0e14',
+      'toast-bg': '#1d2026',
+      'toast-border': '#30363d',
+      'toast-error-bg': '#93000a',
+      'toast-error-border': '#ffb4ab',
+      scrollbar: '#32353c',
+      'scrollbar-hover': '#47494e',
+      'st-modified': '#d29922',
+      'st-added': '#5cc23a',
+      'st-deleted': '#899480',
+      'st-unversioned': '#ffb4ab',
+      'st-conflict': '#f85149',
+      'st-moved': '#c4c7d0',
+    },
+    monaco: {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [
+        { token: '', foreground: 'e1e2eb', background: '101319' },
+        { token: 'comment', foreground: '899480' },
+        { token: 'keyword', foreground: 'd29922' },
+        { token: 'number', foreground: '5cc23a' },
+        { token: 'string', foreground: '77df53' },
+        { token: 'type', foreground: 'c4c7d0' },
+        { token: 'tag', foreground: 'c5c6cc' },
+      ],
+      colors: {
+        'editor.background': '#101319',
+        'editor.foreground': '#e1e2eb',
+        'editor.lineHighlightBackground': '#161b22',
+        'editorLineNumber.foreground': '#47494e',
+        'editorGutter.background': '#101319',
+        'editor.selectionBackground': '#1d6d00',
+        'diffEditor.insertedTextBackground': '#5cc23a26',
+        'diffEditor.insertedLineBackground': '#1c2b1d',
+        'diffEditor.removedTextBackground': '#f8514926',
+        'diffEditor.removedLineBackground': '#3b1e1e',
+        'diffEditorGutter.insertedLineBackground': '#1c2b1d',
+        'diffEditorGutter.removedLineBackground': '#3b1e1e',
+        'scrollbarSlider.background': '#32353c66',
+        'scrollbarSlider.hoverBackground': '#47494e88',
       },
     },
   },
