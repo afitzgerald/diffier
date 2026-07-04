@@ -391,6 +391,70 @@ async function main() {
   await expect('empty state after all changes resolved', async () =>
     /No changes/.test(await page.locator('#tree').textContent()));
 
+  // --- syntax highlighting: shiki grammars for languages Monaco lacks
+  await expect('shiki highlighter initialized', async () =>
+    page.evaluate(() => window.__shikiActive === true));
+
+  fs.writeFileSync(
+    path.join(repo, 'config.toml'),
+    '# server config\n[server]\nport = 8080\nname = "api"\nenabled = true\n'
+  );
+  fs.writeFileSync(
+    path.join(repo, 'Makefile'),
+    '# build\nCC := gcc\nall: main.o\n\t$(CC) -o app main.o\n'
+  );
+  fs.writeFileSync(
+    path.join(repo, 'App.vue'),
+    '<template>\n  <div>{{ msg }}</div>\n</template>\n<script>\nexport default { data: () => ({ msg: "hi" }) }\n</script>\n'
+  );
+  await page.locator('#btn-refresh').click();
+  await expect('new language files appear', async () =>
+    (await page.locator('.tree-row[data-key^="file:"]').count()) === 3);
+
+  const openAndGetLang = async (key) => {
+    await page.locator(`.tree-row[data-key="file:${key}"]`).click();
+    await page.waitForTimeout(400);
+    return page.evaluate(() => {
+      const models = monaco.editor.getModels();
+      return models.length ? models[models.length - 1].getLanguageId() : null;
+    });
+  };
+
+  await expect('TOML detected and highlighted via shiki', async () => {
+    if ((await openAndGetLang('config.toml')) !== 'toml') return false;
+    // Multiple distinct token colors on screen proves tokenization ran.
+    return page.evaluate(() => {
+      const classes = new Set();
+      for (const el of document.querySelectorAll('#diff-editor .view-line span')) {
+        for (const c of el.classList) if (c.startsWith('mtk')) classes.add(c);
+      }
+      return classes.size >= 2;
+    });
+  });
+  await expect('Makefile detected as make', async () =>
+    (await openAndGetLang('Makefile')) === 'make');
+  await expect('Vue SFC detected with real vue grammar', async () =>
+    (await openAndGetLang('App.vue')) === 'vue');
+
+  // Every language in the shiki set must colorize without throwing.
+  const langErrors = await page.evaluate(async (ids) => {
+    const errs = [];
+    for (const id of ids) {
+      try {
+        await monaco.editor.colorize('test { "x" = 1 } # c\n', id, {});
+      } catch (e) {
+        errs.push(id + ': ' + (e.message || e));
+      }
+    }
+    return errs;
+  }, require('../renderer/languages').SHIKI_LANGUAGES.map((l) => l.id));
+  if (langErrors.length) throw new Error('colorize failures:\n' + langErrors.join('\n'));
+  console.log('  ok: all shiki languages colorize cleanly');
+
+  // Clean up so the repo ends with no changes again.
+  await gitlib.rollback(repo, (await gitlib.status(repo)).files);
+  await page.locator('#btn-refresh').click();
+
   if (consoleErrors.length) {
     throw new Error('Console errors:\n' + consoleErrors.join('\n'));
   }

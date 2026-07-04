@@ -126,6 +126,10 @@
   </div>
 
   <script src="../node_modules/monaco-editor/min/vs/loader.js"></script>
+  <script src="languages.js"></script>
+  <!-- Optional shiki bundle (built on postinstall); app.js falls back to
+       Monarch grammars when absent, so a 404 here is non-fatal. -->
+  <script src="highlighter.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

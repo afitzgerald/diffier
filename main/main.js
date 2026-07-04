@@ -319,11 +319,15 @@ function runSmoke() {
     }
     buildMenu();
     createWindow();
-    win.webContents.on('console-message', (_e, level, message) => {
+    win.webContents.on('console-message', (_e, level, message, _line, sourceId) => {
       logs.push(`[console:${level}] ${message}`);
-      // Monaco intentionally falls back to main-thread diffing when workers
-      // can't be created from file:// — not an error for us.
-      const benign = /worker|falling back/i.test(message);
+      // Benign: monaco intentionally falls back to main-thread diffing when
+      // workers can't be created from file://, and the optional shiki bundle
+      // may not have been built (app falls back to Monarch grammars).
+      const benign =
+        /worker|falling back/i.test(message) ||
+        /highlighter\.js/.test(message) ||
+        /highlighter\.js/.test(sourceId || '');
       if (level >= 3 && !benign) errors.push(message);
     });
     win.webContents.on('render-process-gone', (_e, details) => {

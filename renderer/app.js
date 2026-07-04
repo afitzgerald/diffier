@@ -56,6 +56,59 @@ function currentTheme() {
   return THEMES[id] || THEMES[DEFAULT_THEME];
 }
 
+let shikiActive = false;
+
+// Convert a Diffier theme into a TextMate theme for shiki: the monaco
+// `colors` are already VS Code color keys, and the Monarch token rules map
+// onto the equivalent TextMate scopes.
+function toShikiTheme(t) {
+  const ruleColor = (token) => {
+    const r = t.monaco.rules.find((x) => x.token === token);
+    return r && r.foreground ? '#' + r.foreground : undefined;
+  };
+  const fg = ruleColor('') || t.monaco.colors['editor.foreground'];
+  const scopeMap = [
+    [['comment', 'punctuation.definition.comment'], ruleColor('comment')],
+    [['string', 'punctuation.definition.string', 'markup.inserted'], ruleColor('string')],
+    [
+      ['constant.numeric', 'constant.language', 'constant.character', 'constant.other'],
+      ruleColor('number'),
+    ],
+    [
+      ['keyword', 'keyword.operator.new', 'storage', 'storage.type', 'storage.modifier'],
+      ruleColor('keyword'),
+    ],
+    [
+      [
+        'entity.name.type',
+        'entity.name.class',
+        'entity.name.function',
+        'entity.name.namespace',
+        'support.function',
+        'support.class',
+        'support.type',
+      ],
+      ruleColor('type'),
+    ],
+    [
+      ['entity.name.tag', 'punctuation.definition.tag', 'entity.other.attribute-name'],
+      ruleColor('tag'),
+    ],
+    [['markup.deleted', 'invalid'], t.vars['st-conflict']],
+  ];
+  return {
+    name: 'diffier-' + t.id,
+    type: t.monaco.base === 'vs' || t.monaco.base === 'hc-light' ? 'light' : 'dark',
+    colors: { ...t.monaco.colors, 'editor.foreground': fg },
+    settings: [
+      { settings: { foreground: fg, background: t.monaco.colors['editor.background'] } },
+      ...scopeMap
+        .filter(([, color]) => color)
+        .map(([scope, color]) => ({ scope, settings: { foreground: color } })),
+    ],
+  };
+}
+
 function applyTheme(id) {
   const t = THEMES[id] || THEMES[DEFAULT_THEME];
   if (!t) return;
@@ -66,8 +119,14 @@ function applyTheme(id) {
   document.body.dataset.themeStyle = t.style;
   state.settings.theme = t.id;
   if (window.monaco && monaco.editor) {
-    monaco.editor.defineTheme('diffier-theme', t.monaco);
-    monaco.editor.setTheme('diffier-theme');
+    if (shikiActive) {
+      // shikiToMonaco registered one monaco theme per Diffier theme (with
+      // TextMate token colors); its patched setTheme switches both.
+      monaco.editor.setTheme('diffier-' + t.id);
+    } else {
+      monaco.editor.defineTheme('diffier-theme', t.monaco);
+      monaco.editor.setTheme('diffier-theme');
+    }
   }
   const sel = $('theme-select');
   if (sel && sel.value !== t.id) sel.value = t.id;
@@ -226,7 +285,7 @@ const monacoReady = new Promise((resolve) => {
       throw new Error('workers disabled; monaco falls back to main thread');
     },
   };
-  require(['vs/editor/editor.main'], () => {
+  require(['vs/editor/editor.main'], async () => {
     // Monaco binds F7/Shift+F7 to its accessible diff viewer; difference
     // navigation is ours (and rebindable), so drop Monaco's claim on them.
     try {
@@ -236,6 +295,16 @@ const monacoReady = new Promise((resolve) => {
       ]);
     } catch {
       /* older monaco without addKeybindingRules */
+    }
+    window.DiffierLanguages.register(monaco);
+    if (window.DiffierShiki) {
+      try {
+        await window.DiffierShiki.init(monaco, Object.values(THEMES).map(toShikiTheme));
+        shikiActive = true;
+        window.__shikiActive = true; // surfaced for tests and support diagnostics
+      } catch (err) {
+        console.warn('Shiki highlighter unavailable, using built-in grammars:', err);
+      }
     }
     monaco.editor.defineTheme('diffier-theme', currentTheme().monaco);
 
@@ -291,17 +360,8 @@ function updateDiffCount() {
 
 // ---------------------------------------------------------------- language
 
-function languageFor(filePath) {
-  const ext = ('.' + filePath.split('.').pop()).toLowerCase();
-  const langs = monaco.languages.getLanguages();
-  for (const l of langs) {
-    if (l.extensions && l.extensions.includes(ext)) return l.id;
-  }
-  const base = filePath.split('/').pop().toLowerCase();
-  for (const l of langs) {
-    if (l.filenames && l.filenames.includes(base)) return l.id;
-  }
-  return 'plaintext';
+function languageFor(filePath, content) {
+  return window.DiffierLanguages.detect(monaco, filePath, content);
 }
 
 // ------------------------------------------------------------- tree model
@@ -586,7 +646,7 @@ async function openDiff(file, revealEnd) {
     return;
   }
 
-  const lang = languageFor(file.path);
+  const lang = languageFor(file.path, diff.modified || diff.original);
   originalModel = monaco.editor.createModel(diff.original, lang);
   modifiedModel = monaco.editor.createModel(diff.modified, lang);
   diffEditor.setModel({ original: originalModel, modified: modifiedModel });
