@@ -46,7 +46,9 @@
       "package.json"
     ],
     "icon": "build/icon.png",
+    "afterSign": "build/afterSign.js",
     "mac": {
+      "identity": null,
       "category": "public.app-category.developer-tools",
       "target": [
         "dmg",
