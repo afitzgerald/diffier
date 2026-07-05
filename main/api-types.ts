@@ -75,7 +75,9 @@ export type { ConflictInfoResult };
 // The full window.api surface exposed by preload.ts via contextBridge.
 export interface DiffierApi {
   openRepoDialog(): Promise<RepoInfo | null>;
-  openRepo(dir: string): Promise<RepoInfo>;
+  // Null means the repo is already open in another window, which has been
+  // focused instead — the caller should leave its own view untouched.
+  openRepo(dir: string): Promise<RepoInfo | null>;
   openLastRepo(): Promise<RepoInfo | null>;
 
   gitStatus(): Promise<StatusResult>;
