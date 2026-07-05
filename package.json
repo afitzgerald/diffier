@@ -14,7 +14,7 @@
     "test": "yarn build && node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js",
     "build:highlighter": "esbuild renderer/highlighter-entry.ts --bundle --format=iife --minify --log-level=warning --outfile=renderer/highlighter.js",
     "postinstall": "yarn build:highlighter || node -e \"console.warn('shiki highlighter bundle skipped; falling back to built-in grammars')\"",
-    "dist": "yarn build && yarn build:highlighter && electron-builder --mac"
+    "dist": "yarn build && yarn build:highlighter && BUILD_NUMBER=${BUILD_NUMBER:-dev} electron-builder --mac"
   },
   "dependencies": {
     "monaco-editor": "^0.55.1"
@@ -47,6 +47,7 @@
     ],
     "icon": "build/icon.png",
     "afterSign": "build/afterSign.js",
+    "artifactName": "${productName}-build${env.BUILD_NUMBER}-${arch}.${ext}",
     "mac": {
       "identity": null,
       "category": "public.app-category.developer-tools",
