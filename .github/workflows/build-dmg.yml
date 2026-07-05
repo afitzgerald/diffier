@@ -24,7 +24,7 @@ jobs:
       - name: Build DMG
         env:
           BUILD_NUMBER: ${{ github.run_number }}
-        run: yarn dist -c.mac.buildVersion=$BUILD_NUMBER
+        run: yarn dist -c.buildVersion=$BUILD_NUMBER --publish never
 
       - uses: actions/upload-artifact@v4
         with:
