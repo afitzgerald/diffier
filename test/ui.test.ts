@@ -82,7 +82,9 @@ interface CommitArgs {
   partials?: { path: string; content: string }[];
 }
 
-const settings: { lastRepo: string; keymap?: unknown; theme?: string } = { lastRepo: repo };
+const settings: { lastRepo: string; keymap?: unknown; theme?: string; panelSide?: string } = {
+  lastRepo: repo,
+};
 
 const rpc: Record<string, (args: unknown[]) => Promise<unknown>> = {
   'repo:last': async () => ({
@@ -260,6 +262,11 @@ async function main(): Promise<void> {
     Object.defineProperty(navigator, 'platform', { get: () => 'Linux x86_64' });
   });
   await page.addInitScript(API_SHIM);
+  // The assertions assume non-mac key semantics (Mod = Ctrl); pin
+  // navigator.platform so the suite also passes on a macOS dev machine.
+  await page.addInitScript(
+    "Object.defineProperty(navigator, 'platform', { get: () => 'Linux x86_64' });"
+  );
   await page.goto(url);
 
   const expect = async (desc: string, fn: () => Promise<unknown>, timeout = 10000): Promise<unknown> => {
@@ -333,6 +340,17 @@ async function main(): Promise<void> {
     await page.waitForTimeout(400); // human-paced; file switches are async
   };
 
+  // openDiff's once-only onDidUpdateDiff handler can race Monaco's first
+  // (still-empty) diff update on slower machines, leaving the cursor at 1:1
+  // instead of on the first change. Pin it explicitly so the F7 walk always
+  // starts from a known spot.
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      getLineChanges(): unknown[];
+      gotoChange(c: unknown): void;
+    };
+    w.gotoChange(w.getLineChanges()[0]);
+  });
   await press('F7'); // to second hunk (cursor starts at first)
   await press('F7'); // at last difference → arms the next-file hint
   await expect('F7 arms next-file toast at last difference', async () =>
@@ -438,6 +456,32 @@ async function main(): Promise<void> {
         getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() === '#ffffff'
     ));
   await page.locator('#theme-select').selectOption('islands-dark');
+
+  // --- file list position: defaults to left, movable to the right side
+  await expect('panel side defaults to left', async () =>
+    page.evaluate(
+      () =>
+        !document.body.classList.contains('panel-right') &&
+        document.getElementById('commit-panel')!.getBoundingClientRect().left <
+          document.getElementById('diff-pane')!.getBoundingClientRect().left
+    ));
+  await page.locator('#panel-side-select').selectOption('right');
+  await expect('file list moves to the right of the diff pane', async () =>
+    page.evaluate(
+      () =>
+        document.body.classList.contains('panel-right') &&
+        document.getElementById('commit-panel')!.getBoundingClientRect().left >
+          document.getElementById('diff-pane')!.getBoundingClientRect().left
+    ));
+  await expect('panel side persisted to settings', async () => settings.panelSide === 'right');
+  await page.locator('#panel-side-select').selectOption('left');
+  await expect('file list moves back to the left', async () =>
+    page.evaluate(
+      () =>
+        !document.body.classList.contains('panel-right') &&
+        document.getElementById('commit-panel')!.getBoundingClientRect().left <
+          document.getElementById('diff-pane')!.getBoundingClientRect().left
+    ));
   await page.locator('#keymap-done').click();
 
   // --- tree keyboard: Escape focuses tree, arrows move selection, space toggles
