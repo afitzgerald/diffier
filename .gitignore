@@ -3,7 +3,16 @@ dist/
 *.log
 .DS_Store
 
-# Compiled output of the .ts sources (npm run build regenerates these)
+# Yarn 4 (corepack-managed; only patches/plugins/releases/sdks/versions belong in git)
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Compiled output of the .ts sources (yarn build regenerates these)
 main/*.js
 renderer/app/*.js
 renderer/languages.js

@@ -11,15 +11,16 @@ Every runtime source file is `.ts`; `tsc` emits the `.js` right next to
 it (same directory, same basename) so every existing relative path
 (`<script>` tags, `require()`, electron-builder globs) keeps working
 unmodified. The compiled `.js` files are gitignored, not committed —
-**a fresh checkout requires `npm run build` before the app or tests can
+**a fresh checkout requires `yarn build` before the app or tests can
 run**, and **editing a `.ts` file requires recompiling before the
-change takes effect** (`npm run build`, or let
-`pretest`/`prestart`/`presmoke`/`predist` do it for you).
+change takes effect** (`yarn build`, or let `start`/`smoke`/`test`/
+`dist` do it for you — each chains the build first).
 
-- `npm run typecheck` — `tsc --noEmit` across all four programs (main,
+- `yarn typecheck` — `tsc --noEmit` across all four programs (main,
   renderer, highlighter entry, tests). Run this after any `.ts` edit.
-- `npm run build` — same three emit-producing programs, actually writing
-  `.js`. Wired as a `pre*` hook on `start`/`smoke`/`test`/`dist`.
+- `yarn build` — same three emit-producing programs, actually writing
+  `.js`. Chained directly into `start`/`smoke`/`test`/`dist` (Yarn 4
+  does not run `pre*`/`post*` hooks on user-defined scripts).
 - Four separate `tsconfig*.json` (`main`, `renderer`, `highlighter`,
   `test`) because the main process (Node types), renderer (DOM + the
   ambient Monaco global), highlighter bundle entry (real ESM, no
@@ -126,20 +127,20 @@ needs the popup↔anchor pairing or toggle-off breaks.
 
 ## Testing
 
-- `npm test` — recompiles (`pretest` → `npm run build`), then runs
+- `yarn test` — recompiles (chains `yarn build`), then runs
   pure-node tests (git layer, keymap, themes, languages).
   `test/git.test.ts` builds throwaway repos; extend it for any git.ts
   change.
 - `node test/ui.test.js` — full Playwright E2E against the real
   renderer + real git layer over an HTTP shim (Chromium at
   `/opt/pw-browsers/chromium`, override with `DIFFIER_CHROMIUM`). Run
-  `npm run build` first (it's not wired to a `pretest`-style hook since
-  it's invoked directly, not via `npm test`); run it before claiming any
+  `yarn build` first (nothing chains it since the test is invoked
+  directly, not via `yarn test`); run it before claiming any
   renderer change works. Edit `test/ui.test.ts`, not the compiled
   `test/ui.test.js`.
-- `npm run smoke` — boots real Electron headless-ish; needs the Electron
+- `yarn smoke` — boots real Electron headless-ish; needs the Electron
   binary (often unavailable in sandboxes; the UI test is the substitute).
-- `npm run typecheck` — fast `--noEmit` check across all four
+- `yarn typecheck` — fast `--noEmit` check across all four
   `tsconfig*.json` programs; run after any `.ts` edit even if you're not
   about to run the full suite.
 
