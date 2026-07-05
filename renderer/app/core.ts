@@ -114,6 +114,7 @@ interface AppState {
   imageDiff: ImageDiffDescriptor | null;
   commitTemplate: string;
   log: LogState;
+  zoomLevel: number; // temporary font-size offset (px) for diff/conflict editors + markdown; resets on restart
 }
 
 const state: AppState = {
@@ -138,6 +139,7 @@ const state: AppState = {
   blameOn: false,
   imageDiff: null,
   commitTemplate: '',
+  zoomLevel: 0,
   log: {
     entries: [],
     graphLanes: [],

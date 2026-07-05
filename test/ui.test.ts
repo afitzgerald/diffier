@@ -807,6 +807,25 @@ async function main(): Promise<void> {
   await expect('both panes return for a modified file', async () =>
     !((await page.locator('#md-old-pane').getAttribute('class')) || '').includes('hidden') &&
     !((await page.locator('#md-new-pane').getAttribute('class')) || '').includes('hidden'));
+
+  // --- zoom: Mod+=/Mod+-/Mod+Shift+0 scale the diff editor and markdown font
+  const diffFontSize = async (): Promise<number | null> =>
+    page.evaluate(() => (window as unknown as { currentDiffEditorFontSize(): number | null }).currentDiffEditorFontSize());
+  const mdFontSize = async (): Promise<string> =>
+    page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--md-font-size').trim());
+  const baseDiffFontSize = await diffFontSize();
+  await press('Control+Equal');
+  await press('Control+Equal');
+  await expect('zoom in increases diff editor font size', async () =>
+    (await diffFontSize()) === baseDiffFontSize! + 2);
+  await expect('zoom in increases markdown font size', async () => (await mdFontSize()) === '15px');
+  await press('Control+Minus');
+  await expect('zoom out decreases diff editor font size', async () =>
+    (await diffFontSize()) === baseDiffFontSize! + 1);
+  await press('Control+Shift+0');
+  await expect('zoom reset restores diff editor font size', async () => (await diffFontSize()) === baseDiffFontSize);
+  await expect('zoom reset restores markdown font size', async () => (await mdFontSize()) === '13px');
+
   fs.writeFileSync(path.join(repo, 'plain.txt'), 'plain\n');
   await page.locator('#btn-refresh').click();
   await page.locator('.tree-row[data-key="file:plain.txt"]').click();
