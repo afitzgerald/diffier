@@ -401,6 +401,7 @@ kbd {
    follow currentColor per theme instead of baking in a fixed color. */
 #status-branch::before,
 #conflict-bar::before,
+#tab-commit::before,
 #tab-log::before,
 #btn-commit-push::before {
   content: "";
@@ -417,6 +418,7 @@ kbd {
   mask-size: contain;
 }
 #status-branch::before,
+#tab-commit::before,
 #tab-log::before,
 #btn-commit-push::before {
   margin-right: 4px;
@@ -430,6 +432,10 @@ kbd {
   -webkit-mask-image: url('icons/merge.svg');
   mask-image: url('icons/merge.svg');
   color: var(--st-conflict);
+}
+#tab-commit::before {
+  -webkit-mask-image: url('icons/commit.svg');
+  mask-image: url('icons/commit.svg');
 }
 #tab-log::before {
   -webkit-mask-image: url('icons/activity.svg');
