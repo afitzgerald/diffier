@@ -273,11 +273,19 @@ function buildMenu(): void {
   };
 
   const recentRepos = settings.recentRepos || [];
+  const recentRepoNames = recentRepos.map((dir) => dir.split(/[\\/]/).pop() || dir);
   const recentReposSubmenu: MenuItemConstructorOptions[] = recentRepos.length
     ? [
-        ...recentRepos.map(
-          (dir): MenuItemConstructorOptions => ({ label: dir, click: () => openRecentRepo(dir) })
-        ),
+        ...recentRepos.map((dir, i): MenuItemConstructorOptions => {
+          const name = recentRepoNames[i]!;
+          const dupe = recentRepoNames.filter((n) => n === name).length > 1;
+          return {
+            label: dupe ? `${name} — ${dir}` : name,
+            sublabel: isMac ? dir : undefined,
+            toolTip: dir,
+            click: () => openRecentRepo(dir),
+          };
+        }),
         { type: 'separator' },
         {
           label: 'Clear Recently Opened',
