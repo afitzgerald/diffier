@@ -44,6 +44,7 @@ export interface Settings {
   ignoreWhitespace?: boolean;
   collapseUnchanged?: boolean;
   panelWidth?: number;
+  panelSide?: 'left' | 'right';
   commitHistory?: string[];
 }
 
