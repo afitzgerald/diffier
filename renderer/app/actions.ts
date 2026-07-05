@@ -60,6 +60,9 @@ const ACTION_IMPL: Partial<Record<ActionId, () => void>> = {
     $<HTMLInputElement>('tree-filter').select();
   },
   annotate: () => toggleBlame(),
+  'zoom-in': () => zoomIn(),
+  'zoom-out': () => zoomOut(),
+  'zoom-reset': () => zoomReset(),
   'keymap-settings': () => toggleKeymapDialog(),
   'about-dialog': () => toggleAboutDialog(),
 };

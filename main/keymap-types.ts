@@ -30,6 +30,9 @@ export type ActionId =
   | 'open-repo'
   | 'refresh'
   | 'toggle-panel'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'zoom-reset'
   | 'keymap-settings'
   | 'about-dialog';
 
@@ -77,6 +80,9 @@ export const ACTIONS: KeymapAction[] = [
   { id: 'open-repo', label: 'Open Repository', default: 'Mod+O' },
   { id: 'refresh', label: 'Refresh File Status', default: 'Mod+R' },
   { id: 'toggle-panel', label: 'Commit Tool Window', default: 'Mod+0' },
+  { id: 'zoom-in', label: 'Zoom In (Diff & Markdown)', default: 'Mod+=' },
+  { id: 'zoom-out', label: 'Zoom Out (Diff & Markdown)', default: 'Mod+-' },
+  { id: 'zoom-reset', label: 'Reset Zoom', default: 'Mod+Shift+0' },
   { id: 'keymap-settings', label: 'Settings', default: 'Mod+,' },
   { id: 'about-dialog', label: 'About Diffier', default: null },
 ];
