@@ -881,7 +881,9 @@ kbd {
 }
 .popup-item:hover, .popup-item.active { background: var(--selection); color: var(--selection-fg); }
 .popup-item:hover .dim, .popup-item.active .dim { color: var(--selection-fg); opacity: 0.75; }
-.popup-item .item-label { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.popup-item .item-label { overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; }
+.popup-item .dim { overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; max-width: 60%; }
+#repo-list .popup-item .dim { direction: rtl; text-align: left; }
 .popup-item.section {
   color: var(--dim);
   font-size: 11px;
