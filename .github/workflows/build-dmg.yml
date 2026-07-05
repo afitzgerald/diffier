@@ -22,7 +22,9 @@ jobs:
         run: yarn install --immutable
 
       - name: Build DMG
-        run: yarn dist
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: yarn dist -c.mac.buildVersion=$BUILD_NUMBER
 
       - uses: actions/upload-artifact@v4
         with:
