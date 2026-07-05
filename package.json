@@ -9,29 +9,25 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.highlighter.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && tsc -p tsconfig.test.json",
-    "prestart": "npm run build",
-    "start": "electron .",
-    "presmoke": "npm run build",
-    "smoke": "DIFFIER_SMOKE=1 electron --no-sandbox .",
-    "pretest": "npm run build",
-    "test": "node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js",
+    "start": "yarn build && electron .",
+    "smoke": "yarn build && DIFFIER_SMOKE=1 electron --no-sandbox .",
+    "test": "yarn build && node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js",
     "build:highlighter": "esbuild renderer/highlighter-entry.ts --bundle --format=iife --minify --log-level=warning --outfile=renderer/highlighter.js",
-    "postinstall": "npm run build:highlighter || node -e \"console.warn('shiki highlighter bundle skipped; falling back to built-in grammars')\"",
-    "predist": "npm run build",
-    "dist": "npm run build:highlighter && electron-builder --mac"
+    "postinstall": "yarn build:highlighter || node -e \"console.warn('shiki highlighter bundle skipped; falling back to built-in grammars')\"",
+    "dist": "yarn build && yarn build:highlighter && electron-builder --mac"
   },
   "dependencies": {
-    "monaco-editor": "^0.49.0"
+    "monaco-editor": "^0.55.1"
   },
   "devDependencies": {
     "@shikijs/monaco": "^4.3.1",
-    "@types/node": "^20.19.43",
-    "electron": "^31.3.1",
-    "electron-builder": "^24.13.3",
+    "@types/node": "^26.1.0",
+    "electron": "^43.0.0",
+    "electron-builder": "26.15.3",
     "esbuild": "^0.28.1",
     "playwright-core": "^1.61.1",
     "shiki": "^4.3.1",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "build": {
     "appId": "com.diffier.app",
@@ -58,5 +54,6 @@
       ],
       "darkModeSupport": true
     }
-  }
+  },
+  "packageManager": "yarn@4.17.0"
 }
