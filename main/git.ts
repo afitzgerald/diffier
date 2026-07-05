@@ -175,7 +175,10 @@ function parseRecords(out: string): string[][] {
 
 export async function status(root: string): Promise<StatusResult> {
   const [out, branch, head, track, merging] = await Promise.all([
-    git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']),
+    // --no-optional-locks: status may not take index.lock (it opportunistically
+    // refreshes the stat cache) — a concurrent real write (stash pop, commit)
+    // would fail on the lock. Status is called from pollers, so keep it read-only.
+    git(root, ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all']),
     currentBranch(root),
     hasHead(root),
     aheadBehind(root),
