@@ -14,10 +14,34 @@ import type { ThemeId } from './themes';
 
 const SMOKE = process.env.DIFFIER_SMOKE === '1';
 
-let win: BrowserWindow | null = null;
-let repoRoot: string | null = null;
-let watcher: fs.FSWatcher | null = null;
-let watchTimer: ReturnType<typeof setTimeout> | undefined;
+// One repo per window: each BrowserWindow gets its own repo/watcher state,
+// keyed by window id. `repoWindows` is the reverse index (repo root -> window
+// id) used to dedupe — opening a repo that's already open elsewhere focuses
+// that window instead of opening a second one.
+interface WindowState {
+  win: BrowserWindow;
+  repoRoot: string | null;
+  watcher: fs.FSWatcher | null;
+  watchTimer: ReturnType<typeof setTimeout> | undefined;
+  // Directory to open once this window's renderer asks for `repo:last`
+  // (set for windows created to point at a specific repo — CLI, dock drop,
+  // "Open Recent" into a fresh window — as opposed to the initial window,
+  // which falls back to argv/settings).
+  pendingRepoDir: string | undefined;
+  isPrimaryWindow: boolean;
+}
+
+const windowStates = new Map<number, WindowState>();
+const repoWindows = new Map<string, number>();
+
+function stateForWindow(win: BrowserWindow): WindowState | undefined {
+  return windowStates.get(win.id);
+}
+
+function focusedState(): WindowState | null {
+  const focused = BrowserWindow.getFocusedWindow();
+  return focused ? stateForWindow(focused) ?? null : null;
+}
 
 // ---------------------------------------------------------------- settings
 
@@ -44,17 +68,19 @@ function saveSettings(patch: Partial<Settings>): Settings {
 
 // ----------------------------------------------------------------- watcher
 
-function stopWatching(): void {
-  if (watcher) {
-    watcher.close();
-    watcher = null;
+function stopWatching(state: WindowState): void {
+  if (state.watcher) {
+    state.watcher.close();
+    state.watcher = null;
   }
+  clearTimeout(state.watchTimer);
+  state.watchTimer = undefined;
 }
 
-function startWatching(root: string): void {
-  stopWatching();
+function startWatching(state: WindowState, root: string): void {
+  stopWatching(state);
   try {
-    watcher = fs.watch(root, { recursive: true }, (_event, filename) => {
+    state.watcher = fs.watch(root, { recursive: true }, (_event, filename) => {
       if (filename) {
         const f = String(filename).replace(/\\/g, '/');
         // Ignore .git internals except the bits that change on commit/branch
@@ -66,9 +92,9 @@ function startWatching(root: string): void {
         }
         if (f.endsWith('.git/index.lock')) return;
       }
-      clearTimeout(watchTimer);
-      watchTimer = setTimeout(() => {
-        if (win && !win.isDestroyed()) win.webContents.send('repo:changed');
+      clearTimeout(state.watchTimer);
+      state.watchTimer = setTimeout(() => {
+        if (!state.win.isDestroyed()) state.win.webContents.send('repo:changed');
       }, 400);
     });
   } catch {
@@ -78,117 +104,185 @@ function startWatching(root: string): void {
 
 // -------------------------------------------------------------------- repo
 
-async function openRepo(dir: string): Promise<RepoInfo> {
+// Binds `dir`'s repo to `state`'s window unconditionally — callers that care
+// about the one-window-per-repo invariant must dedupe first (see
+// `openRepoDeduped`). Used directly by the `repo:last` boot path, where a
+// dupe is impossible (the window is brand new).
+async function openRepo(state: WindowState, dir: string): Promise<RepoInfo> {
   if (!(await gitlib.isRepo(dir))) {
     throw new Error(`Not a Git repository: ${dir}`);
   }
-  repoRoot = await gitlib.repoRoot(dir);
-  startWatching(repoRoot);
+  const root = await gitlib.repoRoot(dir);
+  if (state.repoRoot && state.repoRoot !== root && repoWindows.get(state.repoRoot) === state.win.id) {
+    repoWindows.delete(state.repoRoot);
+  }
+  state.repoRoot = root;
+  repoWindows.set(root, state.win.id);
+  startWatching(state, root);
   const recents = [
-    repoRoot,
-    ...(loadSettings().recentRepos || []).filter((r) => r !== repoRoot),
+    root,
+    ...(loadSettings().recentRepos || []).filter((r) => r !== root),
   ].slice(0, 10);
-  saveSettings({ lastRepo: repoRoot, recentRepos: recents });
+  saveSettings({ lastRepo: root, recentRepos: recents });
   return {
-    root: repoRoot,
-    name: path.basename(repoRoot),
-    isWorktree: await gitlib.isLinkedWorktree(repoRoot),
+    root,
+    name: path.basename(root),
+    isWorktree: await gitlib.isLinkedWorktree(root),
     recents,
   };
 }
 
-function requireRepo(): string {
-  if (!repoRoot) throw new Error('No repository is open');
-  return repoRoot;
+function requireRepo(state: WindowState): string {
+  if (!state.repoRoot) throw new Error('No repository is open');
+  return state.repoRoot;
+}
+
+function windowForRepoRoot(root: string): BrowserWindow | null {
+  const id = repoWindows.get(root);
+  if (id == null) return null;
+  const w = BrowserWindow.fromId(id);
+  return w && !w.isDestroyed() ? w : null;
+}
+
+// The one-window-per-repo gate: if `dir`'s repo is already open in another
+// window, focus it and return null. Otherwise open it into `currentState`
+// (an existing window explicitly asking to open/switch repos) or, if none is
+// given, into a freshly created window (CLI launch, dock drop, second
+// instance — there's no "current" window to reuse).
+async function openRepoDeduped(dir: string, currentState: WindowState | null): Promise<RepoInfo | null> {
+  if (!(await gitlib.isRepo(dir))) {
+    throw new Error(`Not a Git repository: ${dir}`);
+  }
+  const root = await gitlib.repoRoot(dir);
+  const existing = windowForRepoRoot(root);
+  if (existing && existing !== currentState?.win) {
+    if (existing.isMinimized()) existing.restore();
+    existing.show();
+    existing.focus();
+    return null;
+  }
+  if (currentState) return openRepo(currentState, dir);
+  // Register the reservation immediately (before the new window has even
+  // loaded) so a second concurrent request for the same repo finds it
+  // instead of racing to open a duplicate window.
+  const state = createWindow(dir);
+  repoWindows.set(root, state.win.id);
+  return null;
 }
 
 function openRecentRepo(dir: string): void {
-  openRepo(dir)
+  const currentState = focusedState();
+  openRepoDeduped(dir, currentState)
     .then((repo) => {
       buildMenu();
-      if (win && !win.isDestroyed()) win.webContents.send('repo:opened', repo);
+      if (repo && currentState && !currentState.win.isDestroyed()) {
+        currentState.win.webContents.send('repo:opened', repo);
+      }
     })
     .catch((err) => {
-      dialog.showMessageBox(win!, {
-        type: 'error',
+      const opts = {
+        type: 'error' as const,
         message: 'Could not open repository',
         detail: err instanceof Error ? err.message : String(err),
-      });
+      };
+      const focused = BrowserWindow.getFocusedWindow();
+      if (focused) dialog.showMessageBox(focused, opts);
+      else dialog.showMessageBox(opts);
     });
 }
 
 // --------------------------------------------------------------------- ipc
 
-function handle<T>(channel: string, fn: (...args: any[]) => Promise<T> | T): void {
-  ipcMain.handle(channel, async (_event, ...args: unknown[]) => {
+function handle<T>(channel: string, fn: (state: WindowState, ...args: any[]) => Promise<T> | T): void {
+  ipcMain.handle(channel, async (event, ...args: unknown[]) => {
     try {
-      return { ok: true, value: await fn(...args) };
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const state = win && stateForWindow(win);
+      if (!state) throw new Error('Window is closing');
+      return { ok: true, value: await fn(state, ...args) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
 }
 
-handle('repo:openDialog', async (): Promise<RepoInfo | null> => {
-  const res = await dialog.showOpenDialog(win!, {
+handle('repo:openDialog', async (state): Promise<RepoInfo | null> => {
+  const res = await dialog.showOpenDialog(state.win, {
     title: 'Open Git Repository',
     properties: ['openDirectory'],
   });
   if (res.canceled || !res.filePaths.length) return null;
-  return openRepo(res.filePaths[0]!);
+  const repo = await openRepoDeduped(res.filePaths[0]!, state);
+  buildMenu();
+  return repo;
 });
 
-handle('repo:open', (dir: string) => openRepo(dir));
+handle('repo:open', async (state, dir: string): Promise<RepoInfo | null> => {
+  const repo = await openRepoDeduped(dir, state);
+  buildMenu();
+  return repo;
+});
 
-handle('repo:last', async (): Promise<RepoInfo | null> => {
-  const fromArgv = argvRepo(process.argv);
-  if (fromArgv && (await gitlib.isRepo(fromArgv))) return openRepo(fromArgv);
+handle('repo:last', async (state): Promise<RepoInfo | null> => {
+  // Routed through the dedupe gate (not a bare `openRepo`) because the
+  // resolved directory — pending, argv, or last-used — might already be
+  // open in another window (e.g. "New Window" defaulting to the same
+  // last-used repo as the window it was opened from).
+  if (state.pendingRepoDir) {
+    const dir = state.pendingRepoDir;
+    state.pendingRepoDir = undefined;
+    if (await gitlib.isRepo(dir)) return openRepoDeduped(dir, state);
+  }
+  const fromArgv = state.isPrimaryWindow ? argvRepo(process.argv) : null;
+  if (fromArgv && (await gitlib.isRepo(fromArgv))) return openRepoDeduped(fromArgv, state);
   const { lastRepo } = loadSettings();
-  if (lastRepo && (await gitlib.isRepo(lastRepo))) return openRepo(lastRepo);
+  if (lastRepo && (await gitlib.isRepo(lastRepo))) return openRepoDeduped(lastRepo, state);
   return null;
 });
 
-handle('git:status', () => gitlib.status(requireRepo()));
-handle('git:diff', (relPath: string, type: gitlib.ChangeType, origPath: string | null) =>
-  gitlib.fileDiff(requireRepo(), relPath, type, origPath)
+handle('git:status', (state) => gitlib.status(requireRepo(state)));
+handle('git:diff', (state, relPath: string, type: gitlib.ChangeType, origPath: string | null) =>
+  gitlib.fileDiff(requireRepo(state), relPath, type, origPath)
 );
-handle('git:commit', ({ files, message, amend, partials }: CommitOptions) =>
-  gitlib.commit(requireRepo(), files, message, amend, partials || [])
+handle('git:commit', (state, { files, message, amend, partials }: CommitOptions) =>
+  gitlib.commit(requireRepo(state), files, message, amend, partials || [])
 );
-handle('git:push', () => gitlib.push(requireRepo()));
-handle('git:pull', () => gitlib.pull(requireRepo()));
-handle('git:fetch', () => gitlib.fetch(requireRepo()));
-handle('git:branches', () => gitlib.branches(requireRepo()));
-handle('git:checkout', (name: string) => gitlib.checkout(requireRepo(), name));
-handle('git:createBranch', (name: string) => gitlib.createBranch(requireRepo(), name));
-handle('git:log', (opts: gitlib.LogOptions) => gitlib.log(requireRepo(), opts || {}));
-handle('git:commitDetails', (hash: string) => gitlib.commitDetails(requireRepo(), hash));
+handle('git:push', (state) => gitlib.push(requireRepo(state)));
+handle('git:pull', (state) => gitlib.pull(requireRepo(state)));
+handle('git:fetch', (state) => gitlib.fetch(requireRepo(state)));
+handle('git:branches', (state) => gitlib.branches(requireRepo(state)));
+handle('git:checkout', (state, name: string) => gitlib.checkout(requireRepo(state), name));
+handle('git:createBranch', (state, name: string) => gitlib.createBranch(requireRepo(state), name));
+handle('git:log', (state, opts: gitlib.LogOptions) => gitlib.log(requireRepo(state), opts || {}));
+handle('git:commitDetails', (state, hash: string) => gitlib.commitDetails(requireRepo(state), hash));
 handle(
   'git:commitFileDiff',
-  (hash: string, relPath: string, type: gitlib.ChangeType, origPath: string | null, ref2?: string | null) =>
-    gitlib.commitFileDiff(requireRepo(), hash, relPath, type, origPath, ref2)
+  (state, hash: string, relPath: string, type: gitlib.ChangeType, origPath: string | null, ref2?: string | null) =>
+    gitlib.commitFileDiff(requireRepo(state), hash, relPath, type, origPath, ref2)
 );
 handle(
   'git:imageData',
-  (relPath: string, type: gitlib.ChangeType, origPath: string | null, hash?: string | null) =>
-    gitlib.imageData(requireRepo(), relPath, type, origPath, hash)
+  (state, relPath: string, type: gitlib.ChangeType, origPath: string | null, hash?: string | null) =>
+    gitlib.imageData(requireRepo(state), relPath, type, origPath, hash)
 );
-handle('git:stashList', () => gitlib.stashList(requireRepo()));
-handle('git:stashPush', (message?: string | null, includeUntracked?: boolean) =>
-  gitlib.stashPush(requireRepo(), message, includeUntracked)
+handle('git:stashList', (state) => gitlib.stashList(requireRepo(state)));
+handle('git:stashPush', (state, message?: string | null, includeUntracked?: boolean) =>
+  gitlib.stashPush(requireRepo(state), message, includeUntracked)
 );
-handle('git:stashPop', (ref: string) => gitlib.stashPop(requireRepo(), ref));
-handle('git:stashApply', (ref: string) => gitlib.stashApply(requireRepo(), ref));
-handle('git:stashDrop', (ref: string) => gitlib.stashDrop(requireRepo(), ref));
-handle('git:blame', (relPath: string) => gitlib.blame(requireRepo(), relPath));
-handle('git:conflictInfo', (relPath: string) => gitlib.conflictInfo(requireRepo(), relPath));
-handle('git:markResolved', (relPath: string, content?: string | null) =>
-  gitlib.markResolved(requireRepo(), relPath, content)
+handle('git:stashPop', (state, ref: string) => gitlib.stashPop(requireRepo(state), ref));
+handle('git:stashApply', (state, ref: string) => gitlib.stashApply(requireRepo(state), ref));
+handle('git:stashDrop', (state, ref: string) => gitlib.stashDrop(requireRepo(state), ref));
+handle('git:blame', (state, relPath: string) => gitlib.blame(requireRepo(state), relPath));
+handle('git:conflictInfo', (state, relPath: string) => gitlib.conflictInfo(requireRepo(state), relPath));
+handle('git:markResolved', (state, relPath: string, content?: string | null) =>
+  gitlib.markResolved(requireRepo(state), relPath, content)
 );
-handle('git:rollback', (files: RollbackTarget[]) => gitlib.rollback(requireRepo(), files as gitlib.FileEntry[]));
-handle('git:lastMessage', () => gitlib.lastCommitMessage(requireRepo()));
-handle('git:commitTemplate', async (): Promise<string> => {
-  const root = requireRepo();
+handle('git:rollback', (state, files: RollbackTarget[]) =>
+  gitlib.rollback(requireRepo(state), files as gitlib.FileEntry[])
+);
+handle('git:lastMessage', (state) => gitlib.lastCommitMessage(requireRepo(state)));
+handle('git:commitTemplate', async (state): Promise<string> => {
+  const root = requireRepo(state);
   try {
     const tpl = (await gitlib.git(root, ['config', '--get', 'commit.template'])).trim();
     if (!tpl) return '';
@@ -200,7 +294,7 @@ handle('git:commitTemplate', async (): Promise<string> => {
     return '';
   }
 });
-handle('app:badge', (count: number) => {
+handle('app:badge', (_state, count: number) => {
   try {
     app.setBadgeCount(Number(count) || 0);
   } catch {
@@ -208,29 +302,31 @@ handle('app:badge', (count: number) => {
   }
 });
 handle('app:info', () => ({ name: app.name, version: app.getVersion() }));
-handle('file:save', (relPath: string, content: string) => gitlib.saveFile(requireRepo(), relPath, content));
+handle('file:save', (state, relPath: string, content: string) =>
+  gitlib.saveFile(requireRepo(state), relPath, content)
+);
 handle('settings:get', () => loadSettings());
-handle('settings:set', (patch: Partial<Settings>) => {
+handle('settings:set', (_state, patch: Partial<Settings>) => {
   const merged = saveSettings(patch);
   // Theme changes from the dialog must be reflected in the menu radios.
   if ('theme' in patch) buildMenu();
   return merged;
 });
-handle('keymap:set', (overrides: keymap.KeymapOverrides) => {
+handle('keymap:set', (_state, overrides: keymap.KeymapOverrides) => {
   saveSettings({ keymap: overrides });
   buildMenu(); // menu accelerators must follow the new bindings
 });
-handle('shell:reveal', (relPath: string) =>
-  shell.showItemInFolder(gitlib.insideRepo(requireRepo(), relPath))
+handle('shell:reveal', (state, relPath: string) =>
+  shell.showItemInFolder(gitlib.insideRepo(requireRepo(state), relPath))
 );
 // Markdown-preview links. Only web URLs — anything else (file:, custom
 // schemes) could invoke arbitrary local handlers.
-handle('shell:openExternal', async (url: string) => {
+handle('shell:openExternal', async (_state, url: string) => {
   if (!/^https?:\/\//i.test(url)) throw new Error('Only http(s) links can be opened');
   await shell.openExternal(url);
 });
-handle('app:confirm', async ({ message, detail, confirmLabel }: ConfirmOptions): Promise<boolean> => {
-  const res = await dialog.showMessageBox(win!, {
+handle('app:confirm', async (state, { message, detail, confirmLabel }: ConfirmOptions): Promise<boolean> => {
+  const res = await dialog.showMessageBox(state.win, {
     type: 'warning',
     buttons: [confirmLabel || 'OK', 'Cancel'],
     defaultId: 0,
@@ -243,8 +339,8 @@ handle('app:confirm', async ({ message, detail, confirmLabel }: ConfirmOptions):
 
 // -------------------------------------------------------------------- menu
 
-function send(id: ActionId | `theme:${ThemeId}` | 'window-focus'): void {
-  if (win && !win.isDestroyed()) win.webContents.send('menu', id);
+function send(target: BrowserWindow | null, id: ActionId | `theme:${ThemeId}` | 'window-focus'): void {
+  if (target && !target.isDestroyed()) target.webContents.send('menu', id);
 }
 
 function buildMenu(): void {
@@ -262,7 +358,10 @@ function buildMenu(): void {
   const mi = (id: ActionId, label: string): MenuItemConstructorOptions => {
     const binding: Binding = bindings[id];
     const accelerator = keymap.toAccelerator(binding, process.platform);
-    const item: MenuItemConstructorOptions = { label, click: () => send(id) };
+    const item: MenuItemConstructorOptions = {
+      label,
+      click: () => send(BrowserWindow.getFocusedWindow(), id),
+    };
     if (accelerator) {
       item.accelerator = accelerator;
       item.registerAccelerator = false;
@@ -325,6 +424,7 @@ function buildMenu(): void {
       submenu: [
         mi('open-repo', 'Open Repository…'),
         { label: 'Open Recent', submenu: recentReposSubmenu },
+        { label: 'New Window', click: () => createWindow() },
         { type: 'separator' },
         mi('save', 'Save'),
         ...(isMac ? [] : [{ type: 'separator' } as MenuItemConstructorOptions, mi('keymap-settings', 'Settings…')]),
@@ -389,7 +489,7 @@ function buildMenu(): void {
             label: t.label,
             type: 'radio' as const,
             checked: t.id === currentTheme,
-            click: () => send(`theme:${t.id}`),
+            click: () => send(BrowserWindow.getFocusedWindow(), `theme:${t.id}`),
           })),
         },
         { type: 'separator' },
@@ -399,7 +499,21 @@ function buildMenu(): void {
     },
     {
       label: 'Window',
-      submenu: [{ role: 'minimize' }, { role: 'zoom' }],
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        ...BrowserWindow.getAllWindows().map((w): MenuItemConstructorOptions => {
+          const state = stateForWindow(w);
+          const root = state?.repoRoot;
+          return {
+            label: root ? path.basename(root) : 'Untitled',
+            type: 'checkbox',
+            checked: w === BrowserWindow.getFocusedWindow(),
+            click: () => w.focus(),
+          };
+        }),
+      ],
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -414,16 +528,19 @@ async function installCliLauncher(): Promise<void> {
   // is / when launched via `open`, so relative arguments would be useless.
   const script = `#!/bin/sh\ntarget="$(cd "\${1:-.}" 2>/dev/null && pwd)" || {\n  echo "diffier: no such directory: \${1:-.}" >&2\n  exit 1\n}\nexec open -a "Diffier" --args "$target"\n`;
   const target = '/usr/local/bin/diffier';
+  const parent = BrowserWindow.getFocusedWindow();
+  const show = (opts: Electron.MessageBoxOptions) =>
+    parent ? dialog.showMessageBox(parent, opts) : dialog.showMessageBox(opts);
   try {
     await fsp.writeFile(target, script, { mode: 0o755 });
-    dialog.showMessageBox(win!, {
+    show({
       type: 'info',
       message: 'Command line launcher installed',
       detail: `${target} — run "diffier ." in any repository.`,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    dialog.showMessageBox(win!, {
+    show({
       type: 'error',
       message: 'Could not install the launcher',
       detail:
@@ -454,8 +571,13 @@ function argvRepo(argv: string[]): string | null {
 
 const APP_ICON = path.join(__dirname, '..', 'build', 'icon.png');
 
-function createWindow(): void {
-  win = new BrowserWindow({
+// `pendingRepoDir` is consulted by the `repo:last` handler once this
+// window's renderer boots — used for windows created to point at a known
+// repo (CLI/dock/second-instance/"Open Recent"). `isPrimaryWindow` is only
+// ever true for the first window of the process, the one allowed to fall
+// back to `process.argv` when it has no pending repo of its own.
+function createWindow(pendingRepoDir?: string, isPrimaryWindow = false): WindowState {
+  const win = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 900,
@@ -471,14 +593,39 @@ function createWindow(): void {
       sandbox: false,
     },
   });
+  const state: WindowState = {
+    win,
+    repoRoot: null,
+    watcher: null,
+    watchTimer: undefined,
+    pendingRepoDir,
+    isPrimaryWindow,
+  };
+  windowStates.set(win.id, state);
+
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
-  win.on('focus', () => send('window-focus'));
+  win.on('focus', () => send(win, 'window-focus'));
+  win.on('closed', () => {
+    stopWatching(state);
+    // Scan by window id rather than `state.repoRoot` — a window created for
+    // a pending repo (see `openRepoDeduped`) is reserved in `repoWindows`
+    // before its own boot has run `openRepo` to set `state.repoRoot`, so it
+    // could be closed in between with the field still null.
+    for (const [root, id] of repoWindows) {
+      if (id === win.id) repoWindows.delete(root);
+    }
+    windowStates.delete(win.id);
+    buildMenu(); // Window menu's window list must drop the closed entry
+  });
 
   // The renderer never legitimately navigates away from index.html or opens
   // new windows — deny both outright rather than trusting content it renders
   // (commit messages, branch names, file contents) not to contain a link.
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+  buildMenu(); // Window menu's window list must include the new entry
+  return state;
 }
 
 // ------------------------------------------------------------------- smoke
@@ -490,16 +637,17 @@ function runSmoke(): void {
   const errors: string[] = [];
   const logs: string[] = [];
   app.whenReady().then(async () => {
+    buildMenu();
+    const state = createWindow(undefined, true);
     if (process.env.DIFFIER_SMOKE_REPO) {
       try {
-        await openRepo(process.env.DIFFIER_SMOKE_REPO);
+        await openRepo(state, process.env.DIFFIER_SMOKE_REPO);
       } catch (e) {
         errors.push('openRepo failed: ' + (e instanceof Error ? e.message : String(e)));
       }
     }
-    buildMenu();
-    createWindow();
-    win!.webContents.on('console-message', (_e, level, message, _line, sourceId) => {
+    const win = state.win;
+    win.webContents.on('console-message', (_e, level, message, _line, sourceId) => {
       logs.push(`[console:${level}] ${message}`);
       // Benign: monaco intentionally falls back to main-thread diffing when
       // workers can't be created from file://, and the optional shiki bundle
@@ -510,10 +658,10 @@ function runSmoke(): void {
         /highlighter\.js/.test(sourceId || '');
       if (level >= 3 && !benign) errors.push(message);
     });
-    win!.webContents.on('render-process-gone', (_e, details) => {
+    win.webContents.on('render-process-gone', (_e, details) => {
       errors.push('renderer gone: ' + details.reason);
     });
-    win!.webContents.on(
+    win.webContents.on(
       'did-fail-load',
       (_e, code, desc) => errors.push(`did-fail-load ${code} ${desc}`)
     );
@@ -532,31 +680,60 @@ function runSmoke(): void {
 
 // -------------------------------------------------------------------- boot
 
+// One repo per window, so an external "open this directory" request (CLI
+// launcher, dock drop, Finder "Open With") either focuses the window that
+// already has it open or creates a new one — it never reuses a window that
+// has a *different* repo open, and never opens a duplicate.
+function routeExternalOpen(dir: string): void {
+  openRepoDeduped(dir, null)
+    .then(() => buildMenu())
+    .catch((err) => {
+      dialog.showErrorBox('Could not open repository', err instanceof Error ? err.message : String(err));
+    });
+}
+
 if (SMOKE) {
   runSmoke();
 } else {
-  // Folders dropped on the dock icon / opened via `open -a Diffier <dir>`.
-  app.on('open-file', (event, p) => {
-    event.preventDefault();
-    openRepo(p)
-      .then((repo) => {
-        if (win && !win.isDestroyed()) win.webContents.send('repo:opened', repo);
-      })
-      .catch(() => {});
-  });
-  app.whenReady().then(() => {
-    // Packaged mac builds get their dock icon from the bundled .icns; in dev
-    // (`electron .`) it otherwise falls back to Electron's own.
-    if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(APP_ICON);
-    buildMenu();
-    createWindow();
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  // Only one OS process at a time: a second `diffier <dir>` invocation (or a
+  // second `open -a Diffier`) hands its argv to the already-running instance
+  // via 'second-instance' below and then quits itself.
+  const gotLock = app.requestSingleInstanceLock();
+  if (!gotLock) {
+    app.quit();
+  } else {
+    app.on('second-instance', (_event, argv) => {
+      const dir = argvRepo(argv);
+      if (dir) {
+        routeExternalOpen(dir);
+        return;
+      }
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        if (win.isMinimized()) win.restore();
+        win.focus();
+      }
     });
-  });
+
+    // Folders dropped on the dock icon / opened via `open -a Diffier <dir>`.
+    app.on('open-file', (event, p) => {
+      event.preventDefault();
+      if (app.isReady()) routeExternalOpen(p);
+    });
+
+    app.whenReady().then(() => {
+      // Packaged mac builds get their dock icon from the bundled .icns; in
+      // dev (`electron .`) it otherwise falls back to Electron's own.
+      if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(APP_ICON);
+      buildMenu();
+      createWindow(undefined, true);
+      app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      });
+    });
+  }
 }
 
 app.on('window-all-closed', () => {
-  stopWatching();
   if (process.platform !== 'darwin' || SMOKE) app.quit();
 });

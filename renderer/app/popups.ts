@@ -305,7 +305,7 @@ function openRepoPopup(): void {
       if (state.repo && state.repo.root === dir) return;
       try {
         const repo = await window.api.openRepo(dir);
-        await setRepo(repo);
+        if (repo) await setRepo(repo);
       } catch (err) {
         toast(errMsg(err), true);
       }
