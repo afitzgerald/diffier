@@ -254,6 +254,11 @@ async function main(): Promise<void> {
   });
   page.on('pageerror', (err) => consoleErrors.push('pageerror: ' + err.message));
 
+  // Pin a non-mac platform so keymap "Mod" resolves to Ctrl regardless of the
+  // host OS — the shortcut steps below press Control+… and expect "Ctrl+…" labels.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'platform', { get: () => 'Linux x86_64' });
+  });
   await page.addInitScript(API_SHIM);
   await page.goto(url);
 
@@ -744,6 +749,20 @@ async function main(): Promise<void> {
   await expect('toggle returns to the text diff', async () =>
     ((await page.locator('#markdown-diff').getAttribute('class')) || '').includes('hidden') &&
     (await page.locator('#diff-count').textContent()) !== '');
+  // Added file (no old side): the New pane gets the full width.
+  fs.writeFileSync(path.join(repo, 'NEW.md'), '# Brand new\n\nFresh content.\n');
+  await page.locator('#btn-refresh').click();
+  await page.locator('.tree-row[data-key="file:NEW.md"]').click();
+  await page.locator('#btn-md-view').click();
+  await expect('added file hides the empty Old pane', async () =>
+    ((await page.locator('#md-old-pane').getAttribute('class')) || '').includes('hidden') &&
+    !((await page.locator('#md-new-pane').getAttribute('class')) || '').includes('hidden') &&
+    (await page.locator('#md-new h1').textContent()) === 'Brand new');
+  await page.locator('.tree-row[data-key="file:README.md"]').click();
+  await page.locator('#btn-md-view').click();
+  await expect('both panes return for a modified file', async () =>
+    !((await page.locator('#md-old-pane').getAttribute('class')) || '').includes('hidden') &&
+    !((await page.locator('#md-new-pane').getAttribute('class')) || '').includes('hidden'));
   fs.writeFileSync(path.join(repo, 'plain.txt'), 'plain\n');
   await page.locator('#btn-refresh').click();
   await page.locator('.tree-row[data-key="file:plain.txt"]').click();
