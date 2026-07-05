@@ -1,8 +1,16 @@
 'use strict';
 
-/* Settings dialog: theme picker and keymap editor.
+/* Settings dialog: theme picker, panel-side picker, and keymap editor.
    Part of the Diffier renderer — classic scripts share module scope;
    load order is defined in index.html. */
+
+// ------------------------------------------------------------- panel side
+
+function applyPanelSide(side: 'left' | 'right'): void {
+  document.body.classList.toggle('panel-right', side === 'right');
+  const sel = $<HTMLSelectElement>('panel-side-select');
+  if (sel.value !== side) sel.value = side;
+}
 
 // ------------------------------------------------------------ keymap dialog
 
@@ -117,6 +125,15 @@ $('btn-keymap').addEventListener('click', openKeymapDialog);
     sel.appendChild(opt);
   }
   sel.addEventListener('change', () => setTheme(sel.value as ThemeId));
+})();
+(() => {
+  const sel = $<HTMLSelectElement>('panel-side-select');
+  sel.addEventListener('change', () => {
+    const side = sel.value === 'right' ? 'right' : 'left';
+    applyPanelSide(side);
+    state.settings.panelSide = side;
+    window.api.setSettings({ panelSide: side });
+  });
 })();
 $('keymap-done').addEventListener('click', closeKeymapDialog);
 $('keymap-reset-all').addEventListener('click', () => {
