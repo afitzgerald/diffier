@@ -84,6 +84,9 @@ working-tree changes in any Git repository.
 - **Image diff** — changed PNGs/JPEGs/GIFs/WebP/ICOs show a side-by-side
   image preview on a checkerboard with dimensions; SVGs diff as text with
   a preview toggle.
+- **Markdown preview** — markdown files get a toolbar toggle that swaps
+  the text diff for rendered Old | New panes (scroll-synced); links open
+  in the system browser, and raw HTML in the file renders as literal text.
 - **Rollback** — IntelliJ semantics: tracked files revert to HEAD, renames
   are undone, unversioned files are deleted (with confirmation).
 - **Multi-repo** — the titlebar is a repo switcher with recent
