@@ -100,6 +100,7 @@
           <button class="icon-btn svg-icon" id="btn-collapse-unchanged" title="Collapse Unchanged Regions" style="--icon: url('icons/collapse-regions.svg')"></button>
           <button class="icon-btn svg-icon" id="btn-blame" title="Blame Annotations" style="--icon: url('icons/blame.svg')"></button>
           <button class="icon-btn svg-icon hidden" id="btn-image-view" title="Toggle Image Preview" style="--icon: url('icons/image.svg')"></button>
+          <button class="icon-btn svg-icon hidden" id="btn-md-view" title="Toggle Markdown Preview" style="--icon: url('icons/markdown.svg')"></button>
         </div>
       </div>
       <div id="conflict-bar" class="hidden">
@@ -124,6 +125,16 @@
           <div class="image-pane-title">New</div>
           <div class="image-holder"><img id="image-new" alt="" /><span class="image-missing hidden" id="image-new-missing">(none)</span></div>
           <div class="image-caption dim" id="image-new-caption"></div>
+        </div>
+      </div>
+      <div id="markdown-diff" class="hidden">
+        <div class="md-pane">
+          <div class="md-pane-title">Old</div>
+          <div class="md-body" id="md-old"></div>
+        </div>
+        <div class="md-pane">
+          <div class="md-pane-title">New</div>
+          <div class="md-body" id="md-new"></div>
         </div>
       </div>
       <div id="diff-empty">
@@ -262,6 +273,7 @@
   <script src="app/editor.js"></script>
   <script src="app/staging.js"></script>
   <script src="app/tree.js"></script>
+  <script src="app/markdown.js"></script>
   <script src="app/diff-view.js"></script>
   <script src="app/conflict.js"></script>
   <script src="app/blame.js"></script>

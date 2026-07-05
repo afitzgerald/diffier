@@ -53,6 +53,7 @@ const api: DiffierApi = {
 
   saveFile: (relPath, content) => call('file:save', relPath, content),
   revealFile: (relPath) => call('shell:reveal', relPath),
+  openExternal: (url) => call('shell:openExternal', url),
   confirm: (opts) => call('app:confirm', opts),
 
   getSettings: () => call('settings:get'),

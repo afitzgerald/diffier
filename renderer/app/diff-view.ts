@@ -6,13 +6,14 @@
 
 // ------------------------------------------------------------- diff editor
 
-type DiffPaneView = 'diff' | 'conflict' | 'image';
+type DiffPaneView = 'diff' | 'conflict' | 'image' | 'markdown';
 
-// Switch the diff pane between its three content views.
+// Switch the diff pane between its content views.
 function showPane(which: DiffPaneView): void {
   $('diff-editor').style.display = which === 'diff' ? '' : 'none';
   $('conflict-editor').classList.toggle('hidden', which !== 'conflict');
   $('image-diff').classList.toggle('hidden', which !== 'image');
+  $('markdown-diff').classList.toggle('hidden', which !== 'markdown');
   $('conflict-bar').classList.toggle('hidden', which !== 'conflict');
 }
 
@@ -55,9 +56,11 @@ function resetDiffPane(): void {
   state.shiftF7Armed = false;
   closeConflictSession();
   state.imageDiff = null;
-  const btn = $('btn-image-view');
-  btn.classList.add('hidden');
-  btn.classList.remove('active');
+  for (const id of ['btn-image-view', 'btn-md-view']) {
+    const btn = $(id);
+    btn.classList.add('hidden');
+    btn.classList.remove('active');
+  }
 }
 
 interface PresentDiffOptions {
@@ -97,6 +100,7 @@ function presentDiff(diff: DiffPayload, file: DiffableFile, { readOnly, revealEn
   const lang = languageFor(file.path, diff.modified || diff.original);
   originalModel = monaco.editor.createModel(diff.original, lang);
   modifiedModel = monaco.editor.createModel(diff.modified, lang);
+  if (lang === 'markdown') $('btn-md-view').classList.remove('hidden');
   if (trackPath) currentModelsPath = file.path;
   diffEditor!.setModel({ original: originalModel, modified: modifiedModel });
   diffEditor!.updateOptions({ readOnly });
@@ -195,6 +199,32 @@ async function openCommitFileDiff(commit: CommitDetails, file: CommitFile): Prom
   }
 
   presentDiff(diff, file, { readOnly: true, revealEnd: false, trackPath: false });
+}
+
+// Rendered markdown preview: fill the Old/New panes from the live diff
+// models (so unsaved edits show up) and switch the pane over.
+function showMarkdownDiff(): void {
+  if (!originalModel || !modifiedModel) return;
+  const relPath = state.current?.path ?? state.readOnlyDiff?.path ?? null;
+  const base =
+    state.repo && relPath
+      ? { root: state.repo.root, dir: relPath.split('/').slice(0, -1).join('/') }
+      : null;
+  renderMarkdownPane($('md-old'), originalModel.getValue(), base);
+  renderMarkdownPane($('md-new'), modifiedModel.getValue(), base);
+  showPane('markdown');
+}
+
+function renderMarkdownPane(el: HTMLElement, text: string, base: MarkdownBase | null): void {
+  if (!text.trim()) {
+    el.textContent = '';
+    const span = document.createElement('span');
+    span.className = 'md-none';
+    span.textContent = '(none)';
+    el.appendChild(span);
+    return;
+  }
+  renderMarkdownInto(el, text, base);
 }
 
 function disposeModels(): void {

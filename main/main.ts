@@ -223,6 +223,12 @@ handle('keymap:set', (overrides: keymap.KeymapOverrides) => {
 handle('shell:reveal', (relPath: string) =>
   shell.showItemInFolder(gitlib.insideRepo(requireRepo(), relPath))
 );
+// Markdown-preview links. Only web URLs — anything else (file:, custom
+// schemes) could invoke arbitrary local handlers.
+handle('shell:openExternal', async (url: string) => {
+  if (!/^https?:\/\//i.test(url)) throw new Error('Only http(s) links can be opened');
+  await shell.openExternal(url);
+});
 handle('app:confirm', async ({ message, detail, confirmLabel }: ConfirmOptions): Promise<boolean> => {
   const res = await dialog.showMessageBox(win!, {
     type: 'warning',

@@ -41,6 +41,7 @@ declare global {
   interface Window {
     __pos?: () => boolean;
     __shikiActive?: boolean;
+    __mdPwned?: boolean;
   }
 }
 
@@ -133,7 +134,14 @@ const rpc: Record<string, (args: unknown[]) => Promise<unknown>> = {
     settings.keymap = overrides;
   },
   'app:confirm': async () => true,
+  'shell:openExternal': async ([url]) => {
+    openedExternally.push(url as string);
+    return null;
+  },
 };
+
+// URLs the renderer asked the OS to open (markdown-preview links).
+const openedExternally: string[] = [];
 
 const MIME: Record<string, string> = {
   '.html': 'text/html',
@@ -202,6 +210,7 @@ const API_SHIM = `
         gitLastMessage: 'git:lastMessage', saveFile: 'file:save',
         getSettings: 'settings:get', setSettings: 'settings:set',
         confirm: 'app:confirm', revealFile: 'shell:reveal', setKeymap: 'keymap:set',
+        openExternal: 'shell:openExternal',
       };
       if (name === 'keymapActions') return ${JSON.stringify(keymapLib.ACTIONS)};
       if (name === 'themes') return ${JSON.stringify(themesLib.THEMES)};
@@ -695,6 +704,51 @@ async function main(): Promise<void> {
   await expect('theirs content won', async () =>
     fs.readFileSync(path.join(repo, 'aaa-match.txt'), 'utf8') === 'side version\n');
   g2('commit', '-m', 'merged in ui test');
+
+  // --- markdown preview: rendered Old | New panes for .md files
+  fs.writeFileSync(path.join(repo, 'README.md'), '# Title\n\nOld intro.\n');
+  g2('add', 'README.md');
+  g2('commit', '-m', 'add readme');
+  fs.writeFileSync(
+    path.join(repo, 'README.md'),
+    '# Title v2\n\nNew **intro** with [a link](https://example.com) and `code`.\n\n' +
+      '- item one\n- item two\n\n```js\nconst x = 1;\n```\n\n' +
+      '<script>window.__mdPwned = true</script>\n'
+  );
+  await page.locator('#btn-refresh').click();
+  await page.locator('.tree-row[data-key="file:README.md"]').click();
+  await expect('markdown toggle appears for .md file', async () =>
+    !((await page.locator('#btn-md-view').getAttribute('class')) || '').includes('hidden'));
+  await expect('text diff shown first', async () =>
+    ((await page.locator('#markdown-diff').getAttribute('class')) || '').includes('hidden'));
+  await page.locator('#btn-md-view').click();
+  await expect('markdown panes render old and new', async () =>
+    !((await page.locator('#markdown-diff').getAttribute('class')) || '').includes('hidden') &&
+    (await page.locator('#md-old h1').textContent()) === 'Title' &&
+    (await page.locator('#md-new h1').textContent()) === 'Title v2');
+  await expect('inline formatting and blocks rendered', async () =>
+    (await page.locator('#md-new strong').textContent()) === 'intro' &&
+    (await page.locator('#md-new li').count()) === 2 &&
+    (await page.locator('#md-new pre code').count()) === 1);
+  await expect('raw HTML stays inert text', async () =>
+    page.evaluate(
+      () =>
+        !window.__mdPwned &&
+        !document.querySelector('#md-new script') &&
+        (document.getElementById('md-new')!.textContent || '').includes('<script>')
+    ));
+  await page.locator('#md-new a', { hasText: 'a link' }).click();
+  await expect('link click routed to shell.openExternal, no navigation', async () =>
+    openedExternally[0] === 'https://example.com' && /index\.html/.test(page.url()));
+  await page.locator('#btn-md-view').click();
+  await expect('toggle returns to the text diff', async () =>
+    ((await page.locator('#markdown-diff').getAttribute('class')) || '').includes('hidden') &&
+    (await page.locator('#diff-count').textContent()) !== '');
+  fs.writeFileSync(path.join(repo, 'plain.txt'), 'plain\n');
+  await page.locator('#btn-refresh').click();
+  await page.locator('.tree-row[data-key="file:plain.txt"]').click();
+  await expect('markdown toggle hidden for non-md file', async () =>
+    ((await page.locator('#btn-md-view').getAttribute('class')) || '').includes('hidden'));
 
   // Final cleanup.
   await gitlib.rollback(repo, (await gitlib.status(repo)).files);
