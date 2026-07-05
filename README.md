@@ -140,8 +140,8 @@ Settings or use the **Git** / **View** menus.
 ## Running
 
 ```sh
-npm install    # also builds the shiki highlighter bundle (postinstall)
-npm start      # compiles the TypeScript sources first (prestart), then launches
+yarn install   # also builds the shiki highlighter bundle (postinstall)
+yarn start     # compiles the TypeScript sources first, then launches
 ```
 
 The app reopens the last repository on launch; use `⌘O` to pick another.
@@ -151,8 +151,8 @@ The app reopens the last repository on launch; use `⌘O` to pick another.
 On a Mac:
 
 ```sh
-npm install
-npm run dist        # compiles, rebuilds the shiki bundle, then produces
+yarn install
+yarn dist           # compiles, rebuilds the shiki bundle, then produces
                     # dist/Diffier-<version>.dmg and .zip
 ```
 
@@ -162,15 +162,15 @@ The whole app is TypeScript, compiled **in place**: `tsc` emits each
 `.js` right next to its `.ts` source (no bundler, no `dist/` for source —
 `dist/` is only electron-builder's packaged app output). The compiled
 `.js` is committed, so cloning and running never requires a build step,
-but editing a `.ts` file does — `npm run build` (or just `npm start` /
-`npm test`, which run it for you via `pre*` script hooks). Run
-`npm run typecheck` for a fast `--noEmit` check across all four
+but editing a `.ts` file does — `yarn build` (or just `yarn start` /
+`yarn test`, which chain the build before running). Run
+`yarn typecheck` for a fast `--noEmit` check across all four
 `tsconfig*.json` programs (main process, renderer, the shiki bundle
 entry, tests) without writing any `.js`.
 
 ## Development & tests
 
-- `npm test` — recompiles, then runs integration tests for the Git layer
+- `yarn test` — recompiles, then runs integration tests for the Git layer
   (`main/git.ts`) against a throwaway repository (status parsing for
   every change type, renames, diffs, pathspec and per-hunk partial
   commits, amend author preservation, merge-commit fallback, log/commit
@@ -181,7 +181,7 @@ entry, tests) without writing any `.js`.
   (complete/consistent variable sets, valid colors, dark/light sanity),
   and language detection (grammar shape, extension-collision check,
   shiki-grammar existence, detection with and without the shiki bundle).
-- `npm run build && node test/ui.test.js` — end-to-end UI test. The
+- `yarn build && node test/ui.test.js` — end-to-end UI test. The
   renderer talks to the main process only through `window.api`, so the
   test serves the renderer over HTTP with an RPC shim backed by the real
   Git layer and drives the full flow (tree, F7 navigation, editing +
@@ -189,7 +189,7 @@ entry, tests) without writing any `.js`.
   details, filtering, stash, branch create/switch, conflict resolution)
   with Playwright. Set `DIFFIER_CHROMIUM` to your Chromium binary if it
   is not at `/opt/pw-browsers/chromium`.
-- `npm run smoke` — recompiles, then boots the real Electron app, loads
+- `yarn smoke` — recompiles, then boots the real Electron app, loads
   the repo from `DIFFIER_SMOKE_REPO`, and fails on any renderer error.
 
 ## Architecture
