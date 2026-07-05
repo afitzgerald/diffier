@@ -383,6 +383,10 @@ function buildMenu(): void {
         mi('toggle-panel', 'Commit Tool Window'),
         mi('toggle-log', 'Log Tool Window'),
         mi('annotate', 'Blame Annotations'),
+        { type: 'separator' },
+        mi('zoom-in', 'Zoom In'),
+        mi('zoom-out', 'Zoom Out'),
+        mi('zoom-reset', 'Reset Zoom'),
         {
           label: 'Theme',
           submenu: Object.values(THEMES).map((t) => ({
