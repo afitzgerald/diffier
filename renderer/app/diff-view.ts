@@ -210,8 +210,16 @@ function showMarkdownDiff(): void {
     state.repo && relPath
       ? { root: state.repo.root, dir: relPath.split('/').slice(0, -1).join('/') }
       : null;
-  renderMarkdownPane($('md-old'), originalModel.getValue(), base);
-  renderMarkdownPane($('md-new'), modifiedModel.getValue(), base);
+  const oldText = originalModel.getValue();
+  const newText = modifiedModel.getValue();
+  renderMarkdownPane($('md-old'), oldText, base);
+  renderMarkdownPane($('md-new'), newText, base);
+  // One-sided diff (added or deleted file): give the whole pane to the side
+  // that exists instead of wasting half the width on "(none)".
+  const oldEmpty = !oldText.trim();
+  const newEmpty = !newText.trim();
+  $('md-old-pane').classList.toggle('hidden', oldEmpty && !newEmpty);
+  $('md-new-pane').classList.toggle('hidden', newEmpty && !oldEmpty);
   showPane('markdown');
 }
 
