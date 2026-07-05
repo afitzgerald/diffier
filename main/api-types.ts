@@ -117,6 +117,7 @@ export interface DiffierApi {
 
   saveFile(relPath: string, content: string): Promise<void>;
   revealFile(relPath: string): Promise<void>;
+  openExternal(url: string): Promise<void>;
   confirm(opts: ConfirmOptions): Promise<boolean>;
 
   getSettings(): Promise<Settings>;
