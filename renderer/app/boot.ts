@@ -94,6 +94,54 @@ $('btn-image-view').addEventListener('click', async (e) => {
   showImageDiff(d.payload);
 });
 
+// Markdown files: flip between the text diff and the rendered Old/New panes.
+$('btn-md-view').addEventListener('click', (e) => {
+  const btn = e.currentTarget as HTMLElement;
+  const show = !btn.classList.contains('active');
+  btn.classList.toggle('active', show);
+  if (show) {
+    showMarkdownDiff();
+  } else {
+    showPane('diff');
+    updateDiffCount();
+  }
+});
+
+// Links in rendered markdown never navigate the window (main blocks
+// navigation anyway); http(s) targets open in the system browser.
+$('markdown-diff').addEventListener('click', (e) => {
+  const a = (e.target as HTMLElement).closest('a');
+  if (!a) return;
+  e.preventDefault();
+  const href = a.dataset.href || '';
+  if (/^https?:\/\//i.test(href)) {
+    window.api.openExternal(href).catch((err) => toast('Could not open link: ' + errMsg(err), true));
+  }
+});
+
+// Proportional scroll-sync between the two rendered markdown panes.
+(() => {
+  const panes = [$('md-old'), $('md-new')] as const;
+  let echo: HTMLElement | null = null; // pane whose next scroll event is ours
+  const link = (src: HTMLElement, dst: HTMLElement) => {
+    src.addEventListener('scroll', () => {
+      if (echo === src) {
+        echo = null;
+        return;
+      }
+      const max = src.scrollHeight - src.clientHeight;
+      const dmax = dst.scrollHeight - dst.clientHeight;
+      if (max <= 0 || dmax <= 0) return;
+      const top = (src.scrollTop / max) * dmax;
+      if (Math.abs(dst.scrollTop - top) < 1) return;
+      echo = dst;
+      dst.scrollTop = top;
+    });
+  };
+  link(panes[0], panes[1]);
+  link(panes[1], panes[0]);
+})();
+
 // Conflict bar.
 $('btn-prev-conflict').addEventListener('click', () => gotoConflict(-1));
 $('btn-next-conflict').addEventListener('click', () => gotoConflict(1));
