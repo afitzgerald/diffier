@@ -171,7 +171,10 @@ $('amend-checkbox').addEventListener('change', async (e) => {
   });
   window.addEventListener('mousemove', (e) => {
     if (!dragging) return;
-    const w = Math.min(window.innerWidth * 0.6, Math.max(180, e.clientX));
+    // With the file list on the right the splitter sits to its left, so the
+    // panel width is measured from the window's right edge instead.
+    const x = state.settings.panelSide === 'right' ? window.innerWidth - e.clientX : e.clientX;
+    const w = Math.min(window.innerWidth * 0.6, Math.max(180, x));
     panel.style.width = w + 'px';
   });
   window.addEventListener('mouseup', () => {
@@ -194,6 +197,7 @@ $('amend-checkbox').addEventListener('change', async (e) => {
   if (state.settings.panelWidth) {
     $('commit-panel').style.width = state.settings.panelWidth + 'px';
   }
+  applyPanelSide(state.settings.panelSide || 'left');
   if (state.settings.viewMode === 'unified') {
     $<HTMLSelectElement>('viewer-mode').value = 'unified';
   }

@@ -108,6 +108,17 @@ html, body {
   position: relative;
 }
 
+/* File list on the right (Settings → File list position). Flex order flips
+   the visual layout; the DOM order stays diff-pane-last so nothing else
+   (focus order, splitter wiring) changes. */
+body.panel-right #commit-panel {
+  order: 3;
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+body.panel-right #splitter { order: 2; }
+body.panel-right #diff-pane { order: 1; }
+
 /* ----------------------------------------------------------- panel header */
 
 .panel-header {
