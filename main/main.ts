@@ -556,11 +556,11 @@ async function installCliLauncher(): Promise<void> {
 
 // A directory passed on the command line (e.g. via the `diffier` launcher or
 // `electron . /path/to/repo`) wins over the last-opened repository.
-function argvRepo(argv: string[]): string | null {
+function argvRepo(argv: string[], cwd: string = process.cwd()): string | null {
   for (const arg of argv.slice(1).reverse()) {
     if (arg.startsWith('-')) continue;
     try {
-      const abs = path.resolve(arg);
+      const abs = path.resolve(cwd, arg);
       // Skip the app-path argument from `electron .` in development.
       if (abs === app.getAppPath()) continue;
       if (fs.statSync(abs).isDirectory()) return abs;
@@ -706,8 +706,8 @@ if (SMOKE) {
   if (!gotLock) {
     app.quit();
   } else {
-    app.on('second-instance', (_event, argv) => {
-      const dir = argvRepo(argv);
+    app.on('second-instance', (_event, argv, workingDirectory) => {
+      const dir = argvRepo(argv, workingDirectory);
       if (dir) {
         routeExternalOpen(dir);
         return;
