@@ -323,10 +323,12 @@ button.primary:hover { background: var(--btn-primary-hover); }
 
 #diff-file-path {
   white-space: nowrap;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   text-overflow: ellipsis;
   font-family: var(--font-mono);
   font-size: 12px;
+  scrollbar-width: thin;
 }
 
 #diff-dirty { color: var(--st-modified); font-weight: bold; }

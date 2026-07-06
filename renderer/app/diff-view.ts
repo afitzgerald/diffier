@@ -18,8 +18,9 @@ function showPane(which: DiffPaneView): void {
 }
 
 function setDiffHeader(file: DiffableFile, extra?: string): void {
-  $('diff-file-path').textContent =
-    (file.origPath ? `${file.origPath} → ${file.path}` : file.path) + (extra || '');
+  const text = (file.origPath ? `${file.origPath} → ${file.path}` : file.path) + (extra || '');
+  $('diff-file-path').textContent = text;
+  $('diff-file-path').title = text;
   $('diff-file-path').classList.remove('dim');
   const icon = $('diff-file-icon');
   icon.className = 'file-name ' + file.type;
