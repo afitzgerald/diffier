@@ -365,3 +365,28 @@ function openFileContextMenu(e: MouseEvent, file: FileEntry): void {
   menu.style.left = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8) + 'px';
   menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8) + 'px';
 }
+
+function openDirContextMenu(e: MouseEvent, dirPath: string): void {
+  const menu = $('context-menu');
+  menu.textContent = '';
+  menu.appendChild(
+    popupItem('Copy Path', {
+      icon: '📋',
+      onClick: () => {
+        navigator.clipboard.writeText(dirPath).catch(() => {});
+      },
+    })
+  );
+  menu.appendChild(
+    popupItem('Reveal in Finder', {
+      icon: '📁',
+      onClick: () => {
+        window.api.revealFile(dirPath).catch(() => {});
+      },
+    })
+  );
+  menu.classList.remove('hidden');
+  menu.style.right = menu.style.bottom = 'auto';
+  menu.style.left = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8) + 'px';
+}
