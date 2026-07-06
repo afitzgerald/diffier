@@ -166,6 +166,19 @@ async function openDiff(file: FileEntry, revealEnd?: boolean): Promise<void> {
   }
   if (state.current !== file || state.conflict) return; // user moved on while we loaded
 
+  // Skip the model teardown/rebuild (and the flicker/scroll-reset it causes)
+  // when a refresh (e.g. the fs watcher) re-requests a diff whose content
+  // hasn't actually changed since what's already on screen.
+  if (
+    currentModelsPath === file.path &&
+    originalModel &&
+    modifiedModel &&
+    originalModel.getValue() === (diff.original ?? '') &&
+    modifiedModel.getValue() === (diff.modified ?? '')
+  ) {
+    return;
+  }
+
   presentDiff(diff, file, {
     readOnly: file.type === 'DELETED',
     revealEnd,
