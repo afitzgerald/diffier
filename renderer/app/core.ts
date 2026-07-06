@@ -87,6 +87,7 @@ interface LogState {
   loading: boolean;
   selected: string | null;
   filePath: string | null;
+  details: CommitDetails | null; // currently shown commit, for next/prev-file nav
   gen?: number;
 }
 
@@ -147,6 +148,7 @@ const state: AppState = {
     loading: false,
     selected: null,
     filePath: null,
+    details: null,
   },
 };
 

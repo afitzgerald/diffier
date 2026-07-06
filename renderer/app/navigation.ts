@@ -26,9 +26,18 @@ function gotoChange(c: monaco.editor.ILineChange): void {
 
 // IntelliJ F7 flow: step through differences; at the last one, a hint arms a
 // second F7 press to jump to the first difference of the next file.
+// Worktree tree nav and commit-file-list nav both walk "the next file" —
+// which list depends on which diff pane mode is active (see paneMode()).
+function selectNextFile(revealEnd?: boolean): boolean {
+  return state.readOnlyDiff ? selectCommitFileByOffset(1, revealEnd) : selectFileByOffset(1, revealEnd);
+}
+function selectPrevFile(revealEnd?: boolean): boolean {
+  return state.readOnlyDiff ? selectCommitFileByOffset(-1, revealEnd) : selectFileByOffset(-1, revealEnd);
+}
+
 function nextDifference(): void {
-  if (!state.current) {
-    selectFileByOffset(1);
+  if (!state.current && !state.readOnlyDiff) {
+    selectNextFile();
     return;
   }
   const changes = getLineChanges();
@@ -40,7 +49,7 @@ function nextDifference(): void {
     gotoChange(next);
   } else if (state.f7Armed || changes.length === 0) {
     state.f7Armed = false;
-    if (!selectFileByOffset(1)) toast('No more changed files');
+    if (!selectNextFile()) toast('No more changed files');
   } else {
     state.f7Armed = true;
     toast(`Press ${actionShortcut('next-diff')} to go to the next file`);
@@ -48,8 +57,8 @@ function nextDifference(): void {
 }
 
 function prevDifference(): void {
-  if (!state.current) {
-    selectFileByOffset(-1, true);
+  if (!state.current && !state.readOnlyDiff) {
+    selectPrevFile(true);
     return;
   }
   const changes = getLineChanges();
@@ -61,7 +70,7 @@ function prevDifference(): void {
     gotoChange(prev);
   } else if (state.shiftF7Armed || changes.length === 0) {
     state.shiftF7Armed = false;
-    if (!selectFileByOffset(-1, true)) toast('No more changed files');
+    if (!selectPrevFile(true)) toast('No more changed files');
   } else {
     state.shiftF7Armed = true;
     toast(`Press ${actionShortcut('prev-diff')} to go to the previous file`);
