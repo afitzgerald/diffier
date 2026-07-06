@@ -297,6 +297,10 @@ async function selectLogEntry(c: LogEntryWithGraph): Promise<void> {
       selectCommitFileRow(f.path);
       openCommitFileDiff(det, f);
     }
+  } else if (det.files.length) {
+    const f = det.files[0]!;
+    selectCommitFileRow(f.path);
+    openCommitFileDiff(det, f);
   }
 }
 
