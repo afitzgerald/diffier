@@ -8,8 +8,8 @@
 
 // Build an IntelliJ-style tree: directories first, single-child directory
 // chains compressed into one node ("src/main/java").
-function buildTree(files: FileEntry[]): TreeNode {
-  const root: TreeNode = { name: '', dirs: new Map(), files: [] };
+function buildTree<T extends { path: string }>(files: T[]): TreeNode<T> {
+  const root: TreeNode<T> = { name: '', dirs: new Map(), files: [] };
   for (const f of files) {
     const parts = f.path.split('/');
     let node = root;
@@ -21,7 +21,7 @@ function buildTree(files: FileEntry[]): TreeNode {
     node.files.push(f);
   }
 
-  function compress(node: TreeNode): void {
+  function compress(node: TreeNode<T>): void {
     for (const [key, child] of [...node.dirs]) {
       let c = child;
       while (c.dirs.size === 1 && c.files.length === 0) {
@@ -36,13 +36,13 @@ function buildTree(files: FileEntry[]): TreeNode {
   return root;
 }
 
-function countFiles(node: TreeNode): number {
+function countFiles<T extends { path: string }>(node: TreeNode<T>): number {
   let n = node.files.length;
   for (const child of node.dirs.values()) n += countFiles(child);
   return n;
 }
 
-function collectFiles(node: TreeNode, out: FileEntry[] = []): FileEntry[] {
+function collectFiles<T extends { path: string }>(node: TreeNode<T>, out: T[] = []): T[] {
   for (const child of [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name))) {
     collectFiles(child, out);
   }
@@ -50,13 +50,19 @@ function collectFiles(node: TreeNode, out: FileEntry[] = []): FileEntry[] {
   return out;
 }
 
-function flattenRows(node: TreeNode, depth: number, prefix: string, out: TreeRow[]): void {
+function flattenRows<T extends { path: string }>(
+  node: TreeNode<T>,
+  depth: number,
+  prefix: string,
+  out: TreeRow<T>[],
+  collapsed: Set<string> = state.collapsed
+): void {
   const dirs = [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name));
   for (const d of dirs) {
     const key = 'dir:' + prefix + d.name;
     out.push({ kind: 'dir', key, node: d, depth });
-    if (!state.collapsed.has(key)) {
-      flattenRows(d, depth + 1, prefix + d.name + '/', out);
+    if (!collapsed.has(key)) {
+      flattenRows(d, depth + 1, prefix + d.name + '/', out, collapsed);
     }
   }
   for (const f of node.files.slice().sort((a, b) => a.path.localeCompare(b.path))) {

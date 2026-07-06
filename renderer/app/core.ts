@@ -6,27 +6,30 @@
 
 type PaneMode = 'conflict' | 'commit' | 'worktree' | 'empty';
 
-interface TreeNode {
+// Generic over the file-entry shape so the same tree model/renderer serves
+// both the worktree changes list (FileEntry) and a commit's file list
+// (CommitFile, which lacks FileEntry's worktree-only `xy` field).
+interface TreeNode<T extends { path: string } = FileEntry> {
   name: string;
-  dirs: Map<string, TreeNode>;
-  files: FileEntry[];
+  dirs: Map<string, TreeNode<T>>;
+  files: T[];
 }
 
-interface TreeFileRow {
+interface TreeFileRow<T extends { path: string } = FileEntry> {
   kind: 'file';
   key: string;
-  file: FileEntry;
+  file: T;
   depth: number;
 }
 
-interface TreeDirRow {
+interface TreeDirRow<T extends { path: string } = FileEntry> {
   kind: 'dir';
   key: string;
-  node: TreeNode;
+  node: TreeNode<T>;
   depth: number;
 }
 
-type TreeRow = TreeFileRow | TreeDirRow;
+type TreeRow<T extends { path: string } = FileEntry> = TreeFileRow<T> | TreeDirRow<T>;
 
 // path -> per-file partial-staging bookkeeping (staging.ts owns the logic).
 interface HunkEntry {
@@ -88,6 +91,8 @@ interface LogState {
   selected: string | null;
   filePath: string | null;
   details: CommitDetails | null; // currently shown commit, for next/prev-file nav
+  collapsed: Set<string>; // collapsed directory keys in the commit file tree
+  rows: TreeRow<CommitFile>[]; // flattened visible rows of the commit file tree
   gen?: number;
 }
 
@@ -149,6 +154,8 @@ const state: AppState = {
     selected: null,
     filePath: null,
     details: null,
+    collapsed: new Set(),
+    rows: [],
   },
 };
 
