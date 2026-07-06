@@ -36,6 +36,8 @@ function resetLog(filePath: string | null): void {
   state.log.selected = null;
   state.log.filePath = filePath || null;
   state.log.details = null;
+  state.log.collapsed = new Set();
+  state.log.rows = [];
   $('log-details').classList.add('hidden');
 }
 
@@ -281,6 +283,7 @@ async function selectLogEntry(c: LogEntryWithGraph): Promise<void> {
     return;
   }
   if (state.log.selected !== c.hash) return;
+  state.log.collapsed = new Set();
   renderLogDetails(det);
   // In file-history mode jump straight to this file's diff at that commit.
   // Older commits may know the file under a pre-rename path — only auto-open
@@ -304,22 +307,63 @@ function renderLogDetails(det: CommitDetails): void {
   $('log-details-meta').textContent =
     `${det.short} · ${det.author} <${det.email}> · ${new Date(det.time).toLocaleString()}` +
     (det.parents.length > 1 ? ' · merge' : '');
+  renderCommitFileTree(det);
+}
+
+// Same IntelliJ-style directory-grouped tree as the worktree changes list
+// (buildTree/flattenRows from tree.ts), rendered with its own collapse state
+// since a commit's directories aren't the worktree's.
+function renderCommitFileTree(det: CommitDetails): void {
+  const tree = buildTree(det.files);
+  const rows: TreeRow<CommitFile>[] = [];
+  flattenRows(tree, 0, '', rows, state.log.collapsed);
+  state.log.rows = rows;
   const filesEl = $('log-details-files');
   filesEl.textContent = '';
-  for (const f of det.files) {
-    const row = document.createElement('div');
-    row.className = 'tree-row';
-    row.style.paddingLeft = '8px';
-    row.dataset.path = f.path;
+  for (const row of rows) filesEl.appendChild(buildCommitRowEl(row, det));
+}
 
-    appendFileLabel(row, f, { fullPath: true });
+function buildCommitRowEl(row: TreeRow<CommitFile>, det: CommitDetails): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'tree-row';
+  el.dataset.key = row.key;
+  el.style.paddingLeft = 6 + (row.depth + 1) * 14 + 'px';
 
-    row.addEventListener('click', () => {
-      selectCommitFileRow(f.path);
-      openCommitFileDiff(det, f);
+  const chev = document.createElement('span');
+  chev.className = 'tree-chevron';
+
+  if (row.kind === 'dir') {
+    chev.textContent = state.log.collapsed.has(row.key) ? '▸' : '▾';
+    el.appendChild(chev);
+
+    const name = document.createElement('span');
+    name.className = 'dir-name file-name';
+    name.textContent = row.node.name;
+    el.appendChild(name);
+
+    const count = document.createElement('span');
+    count.className = 'dir-count';
+    count.textContent = String(countFiles(row.node));
+    el.appendChild(count);
+
+    el.addEventListener('click', () => {
+      if (state.log.collapsed.has(row.key)) state.log.collapsed.delete(row.key);
+      else state.log.collapsed.add(row.key);
+      renderCommitFileTree(det);
     });
-    filesEl.appendChild(row);
+  } else {
+    el.appendChild(chev);
+    el.dataset.path = row.file.path;
+    if (state.readOnlyDiff && row.file.path === state.readOnlyDiff.path) el.classList.add('selected');
+
+    appendFileLabel(el, row.file);
+
+    el.addEventListener('click', () => {
+      selectCommitFileRow(row.file.path);
+      openCommitFileDiff(det, row.file);
+    });
   }
+  return el;
 }
 
 function selectCommitFileRow(path: string): void {
@@ -334,12 +378,14 @@ function selectCommitFileRow(path: string): void {
 // selectFileByOffset for the worktree tree).
 function selectCommitFileByOffset(delta: number, revealEnd?: boolean): boolean {
   const det = state.log.details;
-  if (!det || !det.files.length) return false;
-  let idx = det.files.findIndex((f) => state.readOnlyDiff && f.path === state.readOnlyDiff.path);
+  if (!det) return false;
+  const rows = state.log.rows.filter((r): r is TreeFileRow<CommitFile> => r.kind === 'file');
+  if (!rows.length) return false;
+  let idx = rows.findIndex((r) => state.readOnlyDiff && r.file.path === state.readOnlyDiff.path);
   if (idx === -1) idx = delta > 0 ? -1 : 0;
   const next = idx + delta;
-  if (next < 0 || next >= det.files.length) return false;
-  const f = det.files[next]!;
+  if (next < 0 || next >= rows.length) return false;
+  const f = rows[next]!.file;
   selectCommitFileRow(f.path);
   openCommitFileDiff(det, f, revealEnd);
   return true;

@@ -302,7 +302,7 @@ async function main(): Promise<void> {
 
   // --- tree renders all changed files, auto-selects the first one
   await expect('3 changed files in tree', async () =>
-    (await page.locator('.tree-row[data-key^="file:"]').count()) === 3);
+    (await page.locator('#tree .tree-row[data-key^="file:"]').count()) === 3);
   await expect('branch shown in status bar', async () =>
     (await page.locator('#status-branch').textContent()) === 'main');
   // Directories sort before root-level files, so src/alpha.js is first.
@@ -520,7 +520,7 @@ async function main(): Promise<void> {
   await expect('commit toast shown', async () =>
     /Committed/.test((await page.locator('#toast').textContent()) || ''));
   await expect('tree shows only uncommitted file', async () =>
-    (await page.locator('.tree-row[data-key^="file:"]').count()) === 1);
+    (await page.locator('#tree .tree-row[data-key^="file:"]').count()) === 1);
   const lastMsg = (await gitlib.lastCommitMessage(repo)).trim();
   if (lastMsg !== 'feat: update from diffier') {
     throw new Error('commit message mismatch: ' + lastMsg);
@@ -552,7 +552,7 @@ async function main(): Promise<void> {
   );
   await page.locator('#btn-refresh').click();
   await expect('new language files appear', async () =>
-    (await page.locator('.tree-row[data-key^="file:"]').count()) === 3);
+    (await page.locator('#tree .tree-row[data-key^="file:"]').count()) === 3);
 
   const openAndGetLang = async (key: string): Promise<string | null> => {
     await page.locator(`.tree-row[data-key="file:${key}"]`).click();
@@ -661,7 +661,7 @@ async function main(): Promise<void> {
   await expect('commit details appear', async () =>
     !(await page.locator('#log-details').getAttribute('class'))?.includes('hidden') &&
     /first hunk only/.test((await page.locator('#log-details-header').textContent()) || ''));
-  await page.locator('#log-details-files .tree-row').first().click();
+  await page.locator('#log-details-files .tree-row[data-key="file:src/alpha.js"]').click();
   await expect('read-only commit diff opens with @rev in header', async () =>
     /@/.test((await page.locator('#diff-file-path').textContent()) || ''));
   await page.locator('#tab-commit').click();
@@ -671,13 +671,13 @@ async function main(): Promise<void> {
   fs.writeFileSync(path.join(repo, 'bbb-other.txt'), 'b\n');
   await page.locator('#btn-refresh').click();
   await expect('3 changed files before filtering', async () =>
-    (await page.locator('.tree-row[data-key^="file:"]').count()) === 3);
+    (await page.locator('#tree .tree-row[data-key^="file:"]').count()) === 3);
   await page.locator('#tree-filter').fill('aaa');
   await expect('filter narrows to 1 file', async () =>
-    (await page.locator('.tree-row[data-key^="file:"]').count()) === 1);
+    (await page.locator('#tree .tree-row[data-key^="file:"]').count()) === 1);
   await page.locator('#tree-filter-clear').click();
   await expect('clearing filter restores the tree', async () =>
-    (await page.locator('.tree-row[data-key^="file:"]').count()) === 3);
+    (await page.locator('#tree .tree-row[data-key^="file:"]').count()) === 3);
 
   // --- stash dialog: stash everything, then pop it back
   await page.locator('#btn-stash').click();
