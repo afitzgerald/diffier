@@ -35,6 +35,7 @@ function resetLog(filePath: string | null): void {
   state.log.loading = false;
   state.log.selected = null;
   state.log.filePath = filePath || null;
+  state.log.details = null;
   $('log-details').classList.add('hidden');
 }
 
@@ -289,11 +290,15 @@ async function selectLogEntry(c: LogEntryWithGraph): Promise<void> {
     const f =
       det.files.find((x) => x.path === state.log.filePath) ||
       det.files.find((x) => x.origPath === state.log.filePath);
-    if (f) openCommitFileDiff(det, f);
+    if (f) {
+      selectCommitFileRow(f.path);
+      openCommitFileDiff(det, f);
+    }
   }
 }
 
 function renderLogDetails(det: CommitDetails): void {
+  state.log.details = det;
   $('log-details').classList.remove('hidden');
   $('log-details-header').textContent = det.message;
   $('log-details-meta').textContent =
@@ -305,16 +310,39 @@ function renderLogDetails(det: CommitDetails): void {
     const row = document.createElement('div');
     row.className = 'tree-row';
     row.style.paddingLeft = '8px';
+    row.dataset.path = f.path;
 
     appendFileLabel(row, f, { fullPath: true });
 
     row.addEventListener('click', () => {
-      for (const el of filesEl.querySelectorAll('.tree-row')) el.classList.remove('selected');
-      row.classList.add('selected');
+      selectCommitFileRow(f.path);
       openCommitFileDiff(det, f);
     });
     filesEl.appendChild(row);
   }
+}
+
+function selectCommitFileRow(path: string): void {
+  for (const el of $('log-details-files').querySelectorAll('.tree-row')) {
+    const match = (el as HTMLElement).dataset.path === path;
+    el.classList.toggle('selected', match);
+    if (match) (el as HTMLElement).scrollIntoView({ block: 'nearest' });
+  }
+}
+
+// F7-style next/prev file within the currently shown commit (mirrors
+// selectFileByOffset for the worktree tree).
+function selectCommitFileByOffset(delta: number, revealEnd?: boolean): boolean {
+  const det = state.log.details;
+  if (!det || !det.files.length) return false;
+  let idx = det.files.findIndex((f) => state.readOnlyDiff && f.path === state.readOnlyDiff.path);
+  if (idx === -1) idx = delta > 0 ? -1 : 0;
+  const next = idx + delta;
+  if (next < 0 || next >= det.files.length) return false;
+  const f = det.files[next]!;
+  selectCommitFileRow(f.path);
+  openCommitFileDiff(det, f, revealEnd);
+  return true;
 }
 
 function showFileHistory(path: string): void {

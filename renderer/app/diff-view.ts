@@ -187,7 +187,7 @@ async function openDiff(file: FileEntry, revealEnd?: boolean): Promise<void> {
 }
 
 // Read-only diff of one file inside a commit (Log tab / file history).
-async function openCommitFileDiff(commit: CommitDetails, file: CommitFile): Promise<void> {
+async function openCommitFileDiff(commit: CommitDetails, file: CommitFile, revealEnd?: boolean): Promise<void> {
   await monacoReady;
   await autosaveIfDirty();
 
@@ -211,7 +211,7 @@ async function openCommitFileDiff(commit: CommitDetails, file: CommitFile): Prom
     return; // user clicked another file while this diff loaded
   }
 
-  presentDiff(diff, file, { readOnly: true, revealEnd: false, trackPath: false });
+  presentDiff(diff, file, { readOnly: true, revealEnd: !!revealEnd, trackPath: false });
 }
 
 // Rendered markdown preview: fill the Old/New panes from the live diff
