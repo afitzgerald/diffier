@@ -149,6 +149,11 @@ function buildRowEl(row: TreeRow): HTMLElement {
       selectRow(row.key);
       toggleCollapse(row.key);
     });
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      selectRow(row.key);
+      openDirContextMenu(e, row.key.slice('dir:'.length));
+    });
   } else {
     const chev = document.createElement('span');
     chev.className = 'tree-chevron';
