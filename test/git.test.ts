@@ -320,6 +320,34 @@ async function main(): Promise<void> {
   // path escape protection on the new entry points
   await assert.rejects(() => gitlib.markResolved(tmp, '../oops.txt', 'x'));
 
+  // -------------------------------------------------------------- imageData
+  await assert.rejects(
+    () => gitlib.imageData(tmp, 'src/app.js', 'MODIFIED', null),
+    /Not an image/
+  );
+  fs.writeFileSync(path.join(tmp, 'pic.png'), Buffer.from([1, 2, 3]));
+  const imgAdded = await gitlib.imageData(tmp, 'pic.png', 'ADDED', null);
+  assert.strictEqual(imgAdded.imageMime, 'image/png');
+  assert.strictEqual(imgAdded.originalImage, null, 'added image has no original side');
+  assert.strictEqual(imgAdded.modifiedImage, Buffer.from([1, 2, 3]).toString('base64'));
+  run('add', 'pic.png');
+  run('commit', '-m', 'add pic');
+  fs.writeFileSync(path.join(tmp, 'pic.png'), Buffer.from([9, 9, 9]));
+  const imgModified = await gitlib.imageData(tmp, 'pic.png', 'MODIFIED', null);
+  assert.strictEqual(imgModified.originalImage, Buffer.from([1, 2, 3]).toString('base64'));
+  assert.strictEqual(imgModified.modifiedImage, Buffer.from([9, 9, 9]).toString('base64'));
+  run('checkout', '--', 'pic.png');
+  fs.rmSync(path.join(tmp, 'pic.png'));
+  const imgDeleted = await gitlib.imageData(tmp, 'pic.png', 'DELETED', null);
+  assert.strictEqual(imgDeleted.originalImage, Buffer.from([1, 2, 3]).toString('base64'));
+  assert.strictEqual(imgDeleted.modifiedImage, null, 'deleted image has no modified side');
+  // Commit-view lookup: hash pins both sides to that commit's parent/self
+  // instead of HEAD/worktree.
+  const picCommit = (await gitlib.log(tmp, { path: 'pic.png' }))[0]!.hash;
+  const imgAtCommit = await gitlib.imageData(tmp, 'pic.png', 'ADDED', null, picCommit);
+  assert.strictEqual(imgAtCommit.originalImage, null, 'pic.png had no parent version at the adding commit');
+  assert.strictEqual(imgAtCommit.modifiedImage, Buffer.from([1, 2, 3]).toString('base64'));
+
   // ------------------------------------------------------------- worktree
   assert.strictEqual(await gitlib.isLinkedWorktree(tmp), false);
   const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'diffier-wt-'));

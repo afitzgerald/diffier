@@ -42,6 +42,7 @@ declare global {
     __pos?: () => boolean;
     __shikiActive?: boolean;
     __mdPwned?: boolean;
+    __copiedText?: string;
   }
 }
 
@@ -140,10 +141,16 @@ const rpc: Record<string, (args: unknown[]) => Promise<unknown>> = {
     openedExternally.push(url as string);
     return null;
   },
+  'shell:reveal': async ([p]) => {
+    revealedPaths.push(p as string);
+    return null;
+  },
 };
 
 // URLs the renderer asked the OS to open (markdown-preview links).
 const openedExternally: string[] = [];
+// Paths the renderer asked the OS to reveal in Finder (context-menu action).
+const revealedPaths: string[] = [];
 
 const MIME: Record<string, string> = {
   '.html': 'text/html',
@@ -262,6 +269,19 @@ async function main(): Promise<void> {
     Object.defineProperty(navigator, 'platform', { get: () => 'Linux x86_64' });
   });
   await page.addInitScript(API_SHIM);
+  // Chromium's real clipboard needs a permission grant we don't otherwise
+  // set up; stub it so "Copy Path" context-menu items are observable.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: (t: string) => {
+          window.__copiedText = t;
+          return Promise.resolve();
+        },
+      },
+    });
+  });
   // The assertions assume non-mac key semantics (Mod = Ctrl); pin
   // navigator.platform so the suite also passes on a macOS dev machine.
   await page.addInitScript(
@@ -652,7 +672,19 @@ async function main(): Promise<void> {
     (await page.locator('.log-row').count()) >= 2);
   await page.locator('#log-file-filter-clear').click();
 
+  // --- directory context menu: Copy Path / Reveal in Finder
+  await page.locator('#tab-commit').click();
+  await page.locator('.tree-row[data-key="dir:src"]').click({ button: 'right' });
+  await expect('context menu opens for a directory row', async () =>
+    !(await page.locator('#context-menu').getAttribute('class'))?.includes('hidden'));
+  await page.locator('#context-menu .popup-item', { hasText: 'Copy Path' }).click();
+  await expect('directory path copied', async () => (await page.evaluate(() => window.__copiedText)) === 'src');
+  await page.locator('.tree-row[data-key="dir:src"]').click({ button: 'right' });
+  await page.locator('#context-menu .popup-item', { hasText: 'Reveal in Finder' }).click();
+  await expect('directory revealed', async () => revealedPaths.includes('src'));
+
   // --- log tab: full history, commit details, per-commit file diff
+  await page.locator('#tab-log').click();
   await expect('full log shows all commits', async () =>
     (await page.locator('.log-row').count()) >= 3);
   await expect('refs chip on HEAD commit', async () =>
@@ -669,9 +701,9 @@ async function main(): Promise<void> {
   await page.locator('.log-row').last().click(); // "seed" commit: alpha.js + beta.js
   await expect('seed commit details appear', async () =>
     /seed/.test((await page.locator('#log-details-header').textContent()) || ''));
-  await page.locator('#log-details-files .tree-row[data-key="file:src/alpha.js"]').click();
-  await expect('opened alpha.js from seed commit', async () =>
-    /alpha\.js/.test((await page.locator('#diff-file-path').textContent()) || ''));
+  await expect('first file in the commit opens automatically, no click needed', async () =>
+    /alpha\.js/.test((await page.locator('#diff-file-path').textContent()) || '') &&
+    (await page.locator('#log-details-files .tree-row[data-key="file:src/alpha.js"]').getAttribute('class'))?.includes('selected'));
   await page.locator('#btn-next-file').click();
   await expect('next-file button advances within the commit, staying read-only', async () =>
     /src\/beta\.js @/.test((await page.locator('#diff-file-path').textContent()) || ''));
