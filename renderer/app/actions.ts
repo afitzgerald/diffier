@@ -9,8 +9,8 @@
 const ACTION_IMPL: Partial<Record<ActionId, () => void>> = {
   'next-diff': () => nextDifference(),
   'prev-diff': () => prevDifference(),
-  'next-file': () => void selectFileByOffset(1),
-  'prev-file': () => void selectFileByOffset(-1, true),
+  'next-file': () => void selectNextFile(),
+  'prev-file': () => void selectPrevFile(true),
   'focus-tree': () => {
     state.f7Armed = false;
     state.shiftF7Armed = false;

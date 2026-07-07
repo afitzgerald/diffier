@@ -41,8 +41,8 @@ $('btn-collapse-all').addEventListener('click', () => {
 });
 $('btn-next-diff').addEventListener('click', nextDifference);
 $('btn-prev-diff').addEventListener('click', prevDifference);
-$('btn-next-file').addEventListener('click', () => selectFileByOffset(1));
-$('btn-prev-file').addEventListener('click', () => selectFileByOffset(-1, true));
+$('btn-next-file').addEventListener('click', () => selectNextFile());
+$('btn-prev-file').addEventListener('click', () => selectPrevFile(true));
 $('btn-commit').addEventListener('click', () => doCommit(false));
 $('btn-commit-push').addEventListener('click', () => doCommit(true));
 
