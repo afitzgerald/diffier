@@ -664,6 +664,21 @@ async function main(): Promise<void> {
   await page.locator('#log-details-files .tree-row[data-key="file:src/alpha.js"]').click();
   await expect('read-only commit diff opens with @rev in header', async () =>
     /@/.test((await page.locator('#diff-file-path').textContent()) || ''));
+
+  // --- next/prev file buttons walk the commit's file list, not the worktree tree
+  await page.locator('.log-row').last().click(); // "seed" commit: alpha.js + beta.js
+  await expect('seed commit details appear', async () =>
+    /seed/.test((await page.locator('#log-details-header').textContent()) || ''));
+  await page.locator('#log-details-files .tree-row[data-key="file:src/alpha.js"]').click();
+  await expect('opened alpha.js from seed commit', async () =>
+    /alpha\.js/.test((await page.locator('#diff-file-path').textContent()) || ''));
+  await page.locator('#btn-next-file').click();
+  await expect('next-file button advances within the commit, staying read-only', async () =>
+    /src\/beta\.js @/.test((await page.locator('#diff-file-path').textContent()) || ''));
+  await page.locator('#btn-prev-file').click();
+  await expect('prev-file button goes back to alpha.js, still read-only', async () =>
+    /src\/alpha\.js @/.test((await page.locator('#diff-file-path').textContent()) || ''));
+
   await page.locator('#tab-commit').click();
 
   // --- filter box narrows the tree
