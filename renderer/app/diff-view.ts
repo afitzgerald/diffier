@@ -15,6 +15,7 @@ function showPane(which: DiffPaneView): void {
   $('image-diff').classList.toggle('hidden', which !== 'image');
   $('markdown-diff').classList.toggle('hidden', which !== 'markdown');
   $('conflict-bar').classList.toggle('hidden', which !== 'conflict');
+  $('viewer-mode').classList.toggle('hidden', which === 'markdown');
 }
 
 function setDiffHeader(file: DiffableFile, extra?: string): void {
@@ -215,8 +216,9 @@ async function openCommitFileDiff(commit: CommitDetails, file: CommitFile, revea
   presentDiff(diff, file, { readOnly: true, revealEnd: !!revealEnd, trackPath: false });
 }
 
-// Rendered markdown preview: fill the Old/New panes from the live diff
-// models (so unsaved edits show up) and switch the pane over.
+// Rendered markdown preview: a single unified document built from the live
+// diff models (so unsaved edits show up), with removed blocks (old text) and
+// added blocks (new text) tinted inline and everything unchanged shown once.
 function showMarkdownDiff(): void {
   if (!originalModel || !modifiedModel) return;
   const relPath = state.current?.path ?? state.readOnlyDiff?.path ?? null;
@@ -224,29 +226,10 @@ function showMarkdownDiff(): void {
     state.repo && relPath
       ? { root: state.repo.root, dir: relPath.split('/').slice(0, -1).join('/') }
       : null;
-  const oldText = originalModel.getValue();
-  const newText = modifiedModel.getValue();
-  renderMarkdownPane($('md-old'), oldText, base);
-  renderMarkdownPane($('md-new'), newText, base);
-  // One-sided diff (added or deleted file): give the whole pane to the side
-  // that exists instead of wasting half the width on "(none)".
-  const oldEmpty = !oldText.trim();
-  const newEmpty = !newText.trim();
-  $('md-old-pane').classList.toggle('hidden', oldEmpty && !newEmpty);
-  $('md-new-pane').classList.toggle('hidden', newEmpty && !oldEmpty);
+  renderMarkdownDiffInto($('md-diff-body'), originalModel.getValue(), modifiedModel.getValue(), base);
   showPane('markdown');
-}
-
-function renderMarkdownPane(el: HTMLElement, text: string, base: MarkdownBase | null): void {
-  if (!text.trim()) {
-    el.textContent = '';
-    const span = document.createElement('span');
-    span.className = 'md-none';
-    span.textContent = '(none)';
-    el.appendChild(span);
-    return;
-  }
-  renderMarkdownInto(el, text, base);
+  updateMdDiffRuler();
+  resetMdChangeNav();
 }
 
 function disposeModels(): void {
