@@ -15,6 +15,11 @@ window.api.onMenu((id) => {
 window.api.onRepoChanged(() => refreshStatus(state.dirty));
 if (window.api.onRepoOpened) window.api.onRepoOpened((repo) => setRepo(repo));
 
+// Keep the markdown-diff ruler in sync with content reflow (zoom changes
+// the font size, window resizes change wrapping) without threading a
+// callback through every place that could cause either.
+new ResizeObserver(updateMdDiffRuler).observe($('md-diff-body'));
+
 // ---------------------------------------------------------------- toolbar
 
 $('btn-refresh').addEventListener('click', () => refreshStatus());
@@ -94,7 +99,7 @@ $('btn-image-view').addEventListener('click', async (e) => {
   showImageDiff(d.payload);
 });
 
-// Markdown files: flip between the text diff and the rendered Old/New panes.
+// Markdown files: flip between the text diff and the unified rendered view.
 $('btn-md-view').addEventListener('click', (e) => {
   const btn = e.currentTarget as HTMLElement;
   const show = !btn.classList.contains('active');
@@ -118,29 +123,6 @@ $('markdown-diff').addEventListener('click', (e) => {
     window.api.openExternal(href).catch((err) => toast('Could not open link: ' + errMsg(err), true));
   }
 });
-
-// Proportional scroll-sync between the two rendered markdown panes.
-(() => {
-  const panes = [$('md-old'), $('md-new')] as const;
-  let echo: HTMLElement | null = null; // pane whose next scroll event is ours
-  const link = (src: HTMLElement, dst: HTMLElement) => {
-    src.addEventListener('scroll', () => {
-      if (echo === src) {
-        echo = null;
-        return;
-      }
-      const max = src.scrollHeight - src.clientHeight;
-      const dmax = dst.scrollHeight - dst.clientHeight;
-      if (max <= 0 || dmax <= 0) return;
-      const top = (src.scrollTop / max) * dmax;
-      if (Math.abs(dst.scrollTop - top) < 1) return;
-      echo = dst;
-      dst.scrollTop = top;
-    });
-  };
-  link(panes[0], panes[1]);
-  link(panes[1], panes[0]);
-})();
 
 // Conflict bar.
 $('btn-prev-conflict').addEventListener('click', () => gotoConflict(-1));
