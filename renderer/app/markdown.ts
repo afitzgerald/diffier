@@ -17,7 +17,7 @@ interface MarkdownBase {
   dir: string;
 }
 
-const renderMarkdownInto = (() => {
+const markdownRenderer = (() => {
   // --------------------------------------------------------------- helpers
 
   const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})\s*(\S*)/;
@@ -331,11 +331,20 @@ const renderMarkdownInto = (() => {
   function blocks(lines: string[], out: HTMLElement, base: MarkdownBase | null): void {
     let i = 0;
     while (i < lines.length) {
-      const line = lines[i]!;
-      if (!line.trim()) {
+      if (!lines[i]!.trim()) {
         i++;
         continue;
       }
+      i = blockAt(lines, i, out, base);
+    }
+  }
+
+  // Render exactly one top-level block starting at `i` (assumed non-blank)
+  // into `out`, returning the index just past it. Factored out of `blocks`
+  // so the diff view can find block boundaries by reusing this directly.
+  function blockAt(lines: string[], i: number, out: HTMLElement, base: MarkdownBase | null): number {
+    {
+      const line = lines[i]!;
       let m: RegExpExecArray | null;
 
       if ((m = FENCE_OPEN.exec(line))) {
@@ -358,19 +367,17 @@ const renderMarkdownInto = (() => {
         code.textContent = buf.join('\n');
         pre.appendChild(code);
         out.appendChild(pre);
-        continue;
+        return i;
       }
       if ((m = HEADING.exec(line))) {
         const h = document.createElement('h' + m[1]!.length);
         inline(m[2]!.replace(/\s+#+\s*$/, ''), h, base);
         out.appendChild(h);
-        i++;
-        continue;
+        return i + 1;
       }
       if (HR.test(line)) {
         out.appendChild(document.createElement('hr'));
-        i++;
-        continue;
+        return i + 1;
       }
       if (QUOTE.test(line)) {
         const buf: string[] = [];
@@ -381,15 +388,13 @@ const renderMarkdownInto = (() => {
         const bq = document.createElement('blockquote');
         blocks(buf, bq, base);
         out.appendChild(bq);
-        continue;
+        return i;
       }
       if (LIST_ITEM.test(line)) {
-        i = parseList(lines, i, out, base);
-        continue;
+        return parseList(lines, i, out, base);
       }
       if (line.includes('|') && i + 1 < lines.length && TABLE_SEP.test(lines[i + 1]!) && lines[i + 1]!.includes('-')) {
-        i = parseTable(lines, i, out, base);
-        continue;
+        return parseTable(lines, i, out, base);
       }
       // Paragraph: gather until a blank line or the start of another block.
       const buf: string[] = [line];
@@ -401,13 +406,98 @@ const renderMarkdownInto = (() => {
       const p = document.createElement('p');
       inline(buf.join('\n'), p, base);
       out.appendChild(p);
+      return i;
     }
+  }
+
+  // ------------------------------------------------------------ diff view
+
+  // Split into top-level blocks, each rendered into its own wrapper element,
+  // by reusing blockAt (the exact same code path renderMarkdownInto uses)
+  // so a diffed render can never drift from a plain render.
+  function splitTopBlocks(lines: string[], base: MarkdownBase | null): { text: string; node: HTMLElement }[] {
+    const result: { text: string; node: HTMLElement }[] = [];
+    let i = 0;
+    while (i < lines.length) {
+      if (!lines[i]!.trim()) {
+        i++;
+        continue;
+      }
+      const start = i;
+      const wrapper = document.createElement('div');
+      i = blockAt(lines, i, wrapper, base);
+      result.push({ text: lines.slice(start, i).join('\n'), node: wrapper });
+    }
+    return result;
+  }
+
+  // Longest-common-subsequence diff over block source text: block-level
+  // granularity, not line/word — an edited paragraph shows as one removed
+  // block plus one added block rather than a fine-grained inline diff.
+  function diffBlocks<T extends { text: string }>(
+    oldBlocks: T[],
+    newBlocks: T[]
+  ): Array<{ kind: 'same' | 'removed' | 'added'; block: T }> {
+    const n = oldBlocks.length;
+    const m = newBlocks.length;
+    const dp: Uint32Array[] = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+    for (let a = n - 1; a >= 0; a--) {
+      for (let b = m - 1; b >= 0; b--) {
+        dp[a]![b] =
+          oldBlocks[a]!.text === newBlocks[b]!.text
+            ? dp[a + 1]![b + 1]! + 1
+            : Math.max(dp[a + 1]![b]!, dp[a]![b + 1]!);
+      }
+    }
+    const ops: Array<{ kind: 'same' | 'removed' | 'added'; block: T }> = [];
+    let a = 0;
+    let b = 0;
+    while (a < n && b < m) {
+      if (oldBlocks[a]!.text === newBlocks[b]!.text) {
+        ops.push({ kind: 'same', block: newBlocks[b]! });
+        a++;
+        b++;
+      } else if (dp[a + 1]![b]! >= dp[a]![b + 1]!) {
+        ops.push({ kind: 'removed', block: oldBlocks[a]! });
+        a++;
+      } else {
+        ops.push({ kind: 'added', block: newBlocks[b]! });
+        b++;
+      }
+    }
+    while (a < n) {
+      ops.push({ kind: 'removed', block: oldBlocks[a]! });
+      a++;
+    }
+    while (b < m) {
+      ops.push({ kind: 'added', block: newBlocks[b]! });
+      b++;
+    }
+    return ops;
   }
 
   // ------------------------------------------------------------ public api
 
-  return function renderMarkdownInto(container: HTMLElement, src: string, base: MarkdownBase | null): void {
+  // Unified diff: one flowing document, in new-document order, with
+  // untouched blocks unchanged, edited/removed blocks (rendered from the old
+  // text) tinted red, and added blocks tinted green.
+  function renderMarkdownDiffInto(
+    container: HTMLElement,
+    oldSrc: string,
+    newSrc: string,
+    base: MarkdownBase | null
+  ): void {
     container.textContent = '';
-    blocks(src.replace(/\r\n?/g, '\n').split('\n'), container, base);
-  };
+    const oldBlocks = splitTopBlocks(oldSrc.replace(/\r\n?/g, '\n').split('\n'), base);
+    const newBlocks = splitTopBlocks(newSrc.replace(/\r\n?/g, '\n').split('\n'), base);
+    for (const op of diffBlocks(oldBlocks, newBlocks)) {
+      op.block.node.classList.add('md-block');
+      if (op.kind !== 'same') op.block.node.classList.add(op.kind === 'added' ? 'md-added' : 'md-removed');
+      container.appendChild(op.block.node);
+    }
+  }
+
+  return { renderMarkdownDiffInto };
 })();
+
+const renderMarkdownDiffInto = markdownRenderer.renderMarkdownDiffInto;
