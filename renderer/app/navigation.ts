@@ -35,7 +35,68 @@ function selectPrevFile(revealEnd?: boolean): boolean {
   return state.readOnlyDiff ? selectCommitFileByOffset(-1, revealEnd) : selectFileByOffset(-1, revealEnd);
 }
 
+// ------------------------------------------------------ markdown diff view
+
+// The unified markdown view has no editor to anchor a cursor to, so position
+// is tracked explicitly by index rather than derived from scrollTop — a
+// centered block near either edge of the document clamps the scroll to
+// where it already was, and deriving "current" from scrollTop would then
+// re-find that same block forever instead of advancing.
+function markdownChangeBlocks(): HTMLElement[] {
+  return Array.from($('md-diff-body').querySelectorAll<HTMLElement>('.md-added, .md-removed'));
+}
+
+let mdChangeIndex = -1;
+
+// Called whenever the markdown diff is (re)rendered, so navigation starts
+// fresh instead of pointing at a block index from a previous file.
+function resetMdChangeNav(): void {
+  mdChangeIndex = -1;
+}
+
+function gotoMdBlock(b: HTMLElement): void {
+  b.scrollIntoView({ block: 'center', behavior: 'auto' });
+}
+
+function nextMarkdownChange(): void {
+  const blocks = markdownChangeBlocks();
+  if (!blocks.length) return void toast('No changes');
+  if (mdChangeIndex >= blocks.length - 1) return void toast('No more changes');
+  gotoMdBlock(blocks[++mdChangeIndex]!);
+}
+
+function prevMarkdownChange(): void {
+  const blocks = markdownChangeBlocks();
+  if (!blocks.length) return void toast('No changes');
+  if (mdChangeIndex <= 0) return void toast('No more changes');
+  gotoMdBlock(blocks[--mdChangeIndex]!);
+}
+
+// Recompute the ruler marks after (re)rendering the markdown diff, and on
+// any resize/zoom that changes the scroll height (ResizeObserver, wired in
+// boot.ts, covers both).
+function updateMdDiffRuler(): void {
+  const ruler = $('md-diff-ruler');
+  ruler.textContent = '';
+  const body = $('md-diff-body');
+  const total = body.scrollHeight;
+  if (!total) return;
+  const rulerHeight = ruler.clientHeight;
+  for (const b of markdownChangeBlocks()) {
+    const mark = document.createElement('div');
+    mark.className = 'md-diff-ruler-mark ' + (b.classList.contains('md-added') ? 'md-added' : 'md-removed');
+    mark.style.top = `${(b.offsetTop / total) * rulerHeight}px`;
+    mark.style.height = `${Math.max(2, (b.offsetHeight / total) * rulerHeight)}px`;
+    mark.addEventListener('click', () => gotoMdBlock(b));
+    ruler.appendChild(mark);
+  }
+}
+
 function nextDifference(): void {
+  if (!$('markdown-diff').classList.contains('hidden')) {
+    nextMarkdownChange();
+    return;
+  }
   if (!state.current && !state.readOnlyDiff) {
     selectNextFile();
     return;
@@ -57,6 +118,10 @@ function nextDifference(): void {
 }
 
 function prevDifference(): void {
+  if (!$('markdown-diff').classList.contains('hidden')) {
+    prevMarkdownChange();
+    return;
+  }
   if (!state.current && !state.readOnlyDiff) {
     selectPrevFile(true);
     return;

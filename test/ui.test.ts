@@ -754,7 +754,7 @@ async function main(): Promise<void> {
     fs.readFileSync(path.join(repo, 'aaa-match.txt'), 'utf8') === 'side version\n');
   g2('commit', '-m', 'merged in ui test');
 
-  // --- markdown preview: rendered Old | New panes for .md files
+  // --- markdown preview: unified rendered diff for .md files
   fs.writeFileSync(path.join(repo, 'README.md'), '# Title\n\nOld intro.\n');
   g2('add', 'README.md');
   g2('commit', '-m', 'add readme');
@@ -771,42 +771,94 @@ async function main(): Promise<void> {
   await expect('text diff shown first', async () =>
     ((await page.locator('#markdown-diff').getAttribute('class')) || '').includes('hidden'));
   await page.locator('#btn-md-view').click();
-  await expect('markdown panes render old and new', async () =>
+  await expect('unified view renders removed and added blocks', async () =>
     !((await page.locator('#markdown-diff').getAttribute('class')) || '').includes('hidden') &&
-    (await page.locator('#md-old h1').textContent()) === 'Title' &&
-    (await page.locator('#md-new h1').textContent()) === 'Title v2');
+    (await page.locator('.md-removed h1').textContent()) === 'Title' &&
+    (await page.locator('.md-added h1').textContent()) === 'Title v2');
   await expect('inline formatting and blocks rendered', async () =>
-    (await page.locator('#md-new strong').textContent()) === 'intro' &&
-    (await page.locator('#md-new li').count()) === 2 &&
-    (await page.locator('#md-new pre code').count()) === 1);
+    (await page.locator('.md-added strong').textContent()) === 'intro' &&
+    (await page.locator('.md-added li').count()) === 2 &&
+    (await page.locator('.md-added pre code').count()) === 1);
   await expect('raw HTML stays inert text', async () =>
     page.evaluate(
       () =>
         !window.__mdPwned &&
-        !document.querySelector('#md-new script') &&
-        (document.getElementById('md-new')!.textContent || '').includes('<script>')
+        !document.querySelector('.md-added script') &&
+        (document.getElementById('md-diff-body')!.textContent || '').includes('<script>')
     ));
-  await page.locator('#md-new a', { hasText: 'a link' }).click();
+  await page.locator('.md-added a', { hasText: 'a link' }).click();
   await expect('link click routed to shell.openExternal, no navigation', async () =>
     openedExternally[0] === 'https://example.com' && /index\.html/.test(page.url()));
   await page.locator('#btn-md-view').click();
   await expect('toggle returns to the text diff', async () =>
     ((await page.locator('#markdown-diff').getAttribute('class')) || '').includes('hidden') &&
     (await page.locator('#diff-count').textContent()) !== '');
-  // Added file (no old side): the New pane gets the full width.
+  // Added file (no old side): every block renders as added, none removed.
   fs.writeFileSync(path.join(repo, 'NEW.md'), '# Brand new\n\nFresh content.\n');
   await page.locator('#btn-refresh').click();
   await page.locator('.tree-row[data-key="file:NEW.md"]').click();
   await page.locator('#btn-md-view').click();
-  await expect('added file hides the empty Old pane', async () =>
-    ((await page.locator('#md-old-pane').getAttribute('class')) || '').includes('hidden') &&
-    !((await page.locator('#md-new-pane').getAttribute('class')) || '').includes('hidden') &&
-    (await page.locator('#md-new h1').textContent()) === 'Brand new');
+  await expect('added file has no removed blocks', async () =>
+    (await page.locator('.md-removed').count()) === 0 &&
+    (await page.locator('.md-added h1').textContent()) === 'Brand new');
   await page.locator('.tree-row[data-key="file:README.md"]').click();
   await page.locator('#btn-md-view').click();
-  await expect('both panes return for a modified file', async () =>
-    !((await page.locator('#md-old-pane').getAttribute('class')) || '').includes('hidden') &&
-    !((await page.locator('#md-new-pane').getAttribute('class')) || '').includes('hidden'));
+  await expect('a modified file shows both removed and added blocks', async () =>
+    (await page.locator('.md-removed').count()) > 0 &&
+    (await page.locator('.md-added').count()) > 0);
+  await expect('diff ruler has a mark per changed block', async () =>
+    page.evaluate(() => {
+      const marks = document.querySelectorAll('#md-diff-ruler .md-diff-ruler-mark').length;
+      const blocks = document.querySelectorAll('#md-diff-body .md-added, #md-diff-body .md-removed').length;
+      return marks > 0 && marks === blocks;
+    }));
+
+  // F7/Shift+F7 walk changed blocks in the markdown view instead of Monaco
+  // line changes. Content tall enough that the changes near the end can't
+  // fit on screen with the ones near the top, so a real scroll is
+  // observable once navigation reaches them — the two edited paragraphs
+  // near the very top center-clamp to scrollTop 0 (nothing above them to
+  // scroll past), which is what originally masked index tracking getting
+  // stuck re-finding the same block forever instead of advancing.
+  fs.writeFileSync(
+    path.join(repo, 'TALL.md'),
+    Array.from({ length: 30 }, (_, i) => `Paragraph ${i} filler text to force scrolling.`).join('\n\n') + '\n'
+  );
+  g2('add', 'TALL.md');
+  g2('commit', '-m', 'add tall md');
+  const tallLines = Array.from({ length: 30 }, (_, i) => `Paragraph ${i} filler text to force scrolling.`);
+  tallLines[0] = 'Paragraph 0 EDITED filler text to force scrolling.';
+  tallLines[29] = 'Paragraph 29 EDITED filler text to force scrolling.';
+  fs.writeFileSync(path.join(repo, 'TALL.md'), tallLines.join('\n\n') + '\n');
+  await page.locator('#btn-refresh').click();
+  await page.locator('.tree-row[data-key="file:TALL.md"]').click();
+  await page.locator('#btn-md-view').click();
+  const mdScrollTop = () => page.evaluate(() => document.getElementById('md-diff-body')!.scrollTop);
+  await expect('markdown view starts scrolled to the top', async () => (await mdScrollTop()) === 0);
+  // 4 changed blocks: removed+added near paragraph 0 (top, clamp to 0),
+  // removed+added near paragraph 29 (bottom, requires scrolling).
+  await page.keyboard.press('F7');
+  await page.keyboard.press('F7');
+  await expect('first two changes (near the top) stay in view without scrolling', async () =>
+    (await mdScrollTop()) === 0);
+  await page.keyboard.press('F7');
+  await expect('third F7 advances past the top pair and scrolls to the bottom change', async () =>
+    (await mdScrollTop()) > 0);
+  const afterThird = await mdScrollTop();
+  await page.keyboard.press('F7');
+  await expect('F7 stays on the last change, no further movement', async () => (await mdScrollTop()) === afterThird);
+  await page.keyboard.press('F7');
+  await expect('F7 past the last change shows a toast instead of looping', async () =>
+    /No more changes/.test((await page.locator('#toast').textContent()) || ''));
+  await page.keyboard.press('Shift+F7');
+  await page.keyboard.press('Shift+F7');
+  await page.keyboard.press('Shift+F7');
+  await expect('Shift+F7 walks back to the top change', async () => (await mdScrollTop()) === 0);
+  await page.keyboard.press('Shift+F7');
+  await expect('Shift+F7 past the first change shows a toast instead of looping', async () =>
+    /No more changes/.test((await page.locator('#toast').textContent()) || ''));
+  await page.locator('.tree-row[data-key="file:README.md"]').click();
+  await page.locator('#btn-md-view').click();
 
   // --- zoom: Mod+=/Mod+-/Mod+Shift+0 scale the diff editor and markdown font
   const diffFontSize = async (): Promise<number | null> =>
