@@ -53,7 +53,8 @@ type ImagePayloadLike = Pick<ImageDataResult, 'imageMime' | 'originalImage' | 'm
 
 interface ImageDiffDescriptor {
   file: DiffableFile;
-  hash: string | null;
+  leftRef: string | null;
+  rightRef: string | null;
   payload: ImagePayloadLike | null;
 }
 
@@ -96,6 +97,15 @@ interface LogState {
   gen?: number;
 }
 
+interface CompareState {
+  refA: string;
+  refB: string; // '' means "working tree"
+  files: CommitFile[];
+  collapsed: Set<string>; // collapsed directory keys in the compare file tree
+  rows: TreeRow<CommitFile>[]; // flattened visible rows of the compare file tree
+  gen: number; // bumped on each runCompare(); discards superseded in-flight results
+}
+
 interface AppState {
   repo: RepoInfo | null;
   merging: boolean; // a merge is in progress (MERGE_HEAD exists)
@@ -107,19 +117,20 @@ interface AppState {
   selectedKey: string | null; // key of selected row
   // Diff pane mode — exactly one of these is set; use paneMode() to branch:
   current: FileEntry | null; //   editable worktree diff: the open file
-  readOnlyDiff: { hash: string; path: string } | null; //   commit diff from the Log tab
+  readOnlyDiff: { leftRef: string; rightRef: string; path: string } | null; //   commit/compare diff (Log or Compare tab)
   conflict: ConflictSession | null; //   conflict-resolution session
   dirty: boolean;
   f7Armed: boolean; // "press F7 again to go to next file"
   shiftF7Armed: boolean;
   settings: Settings;
   filter: string; // tree filter text
-  view: 'commit' | 'log'; // left panel
+  view: 'commit' | 'log' | 'compare'; // left panel
   hunks: Map<string, HunkEntry>;
   blameOn: boolean;
   imageDiff: ImageDiffDescriptor | null;
   commitTemplate: string;
   log: LogState;
+  compare: CompareState;
   zoomLevel: number; // temporary font-size offset (px) for diff/conflict editors + markdown; resets on restart
 }
 
@@ -156,6 +167,14 @@ const state: AppState = {
     details: null,
     collapsed: new Set(),
     rows: [],
+  },
+  compare: {
+    refA: '',
+    refB: '',
+    files: [],
+    collapsed: new Set(),
+    rows: [],
+    gen: 0,
   },
 };
 

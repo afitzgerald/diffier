@@ -24,20 +24,33 @@ new ResizeObserver(updateMdDiffRuler).observe($('md-diff-body'));
 
 $('btn-refresh').addEventListener('click', () => refreshStatus());
 $('btn-rollback').addEventListener('click', doRollback);
+
+// Expand/Collapse All apply to whichever file tree the active tab shows.
 $('btn-expand-all').addEventListener('click', () => {
-  state.collapsed.clear();
-  renderTree();
+  if (state.view === 'log') {
+    if (!state.log.details) return;
+    state.log.collapsed.clear();
+    renderCommitFileTree(state.log.details);
+  } else if (state.view === 'compare') {
+    state.compare.collapsed.clear();
+    renderCompareFileTree();
+  } else {
+    state.collapsed.clear();
+    renderTree();
+  }
 });
 $('btn-collapse-all').addEventListener('click', () => {
-  const walk = (rows: TreeRow[]) => {
-    for (const r of rows) if (r.kind === 'dir') state.collapsed.add(r.key);
-  };
-  // Flatten with nothing collapsed to find every dir key.
-  state.collapsed.clear();
-  const all: TreeRow[] = [];
-  flattenRows(buildTree(state.files), 0, '', all);
-  walk(all);
-  renderTree();
+  if (state.view === 'log') {
+    if (!state.log.details) return;
+    state.log.collapsed = new Set(allDirKeys(state.log.details.files));
+    renderCommitFileTree(state.log.details);
+  } else if (state.view === 'compare') {
+    state.compare.collapsed = new Set(allDirKeys(state.compare.files));
+    renderCompareFileTree();
+  } else {
+    state.collapsed = new Set(allDirKeys(state.files));
+    renderTree();
+  }
 });
 $('btn-next-diff').addEventListener('click', nextDifference);
 $('btn-prev-diff').addEventListener('click', prevDifference);
@@ -88,7 +101,7 @@ $('btn-image-view').addEventListener('click', async (e) => {
   if (!d) return;
   if (!d.payload) {
     try {
-      d.payload = await window.api.gitImageData(d.file.path, d.file.type, d.file.origPath, d.hash);
+      d.payload = await window.api.gitImageData(d.file.path, d.file.type, d.file.origPath, d.leftRef, d.rightRef);
     } catch (err) {
       btn.classList.remove('active');
       toast('Image preview failed: ' + errMsg(err), true);

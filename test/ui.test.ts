@@ -115,10 +115,11 @@ const rpc: Record<string, (args: unknown[]) => Promise<unknown>> = {
   'git:createBranch': ([name]) => gitlib.createBranch(repo, name as string),
   'git:log': ([opts]) => gitlib.log(repo, (opts as gitlib.LogOptions) || {}),
   'git:commitDetails': ([hash]) => gitlib.commitDetails(repo, hash as string),
-  'git:commitFileDiff': ([hash, p, t, o, r2]) =>
-    gitlib.commitFileDiff(repo, hash as string, p as string, t as gitlib.ChangeType, o as string | null, r2 as string | undefined),
-  'git:imageData': ([p, t, o, hash]) =>
-    gitlib.imageData(repo, p as string, t as gitlib.ChangeType, o as string | null, hash as string | null),
+  'git:compareRefs': ([refA, refB]) => gitlib.compareRefs(repo, refA as string, refB as string | null),
+  'git:refFileDiff': ([refA, refB, p, t, o]) =>
+    gitlib.refFileDiff(repo, refA as string, refB as string, p as string, t as gitlib.ChangeType, o as string | null),
+  'git:imageData': ([p, t, o, leftRef, rightRef]) =>
+    gitlib.imageData(repo, p as string, t as gitlib.ChangeType, o as string | null, leftRef as string | null, rightRef as string | null),
   'git:stashList': () => gitlib.stashList(repo),
   'git:stashPush': ([msg, untracked]) => gitlib.stashPush(repo, msg as string, untracked as boolean),
   'git:stashPop': ([ref]) => gitlib.stashPop(repo, ref as string),
@@ -209,7 +210,8 @@ const API_SHIM = `
         gitPull: 'git:pull', gitFetch: 'git:fetch', gitBranches: 'git:branches',
         gitCheckout: 'git:checkout', gitCreateBranch: 'git:createBranch',
         gitLog: 'git:log', gitCommitDetails: 'git:commitDetails',
-        gitCommitFileDiff: 'git:commitFileDiff', gitImageData: 'git:imageData',
+        gitCompareRefs: 'git:compareRefs', gitRefFileDiff: 'git:refFileDiff',
+        gitImageData: 'git:imageData',
         gitStashList: 'git:stashList',
         gitStashPush: 'git:stashPush', gitStashPop: 'git:stashPop',
         gitStashApply: 'git:stashApply', gitStashDrop: 'git:stashDrop',
@@ -710,6 +712,22 @@ async function main(): Promise<void> {
   await page.locator('#btn-prev-file').click();
   await expect('prev-file button goes back to alpha.js, still read-only', async () =>
     /src\/alpha\.js @/.test((await page.locator('#diff-file-path').textContent()) || ''));
+
+  // --- compare tab: diff two arbitrary refs by hash
+  const seedHash = await page.locator('.log-row').last().getAttribute('data-hash');
+  const headHash = await page.locator('.log-row').first().getAttribute('data-hash');
+  await page.locator('#tab-compare').click();
+  await page.locator('#compare-ref-a').fill(seedHash!);
+  await page.locator('#compare-ref-b').fill(headHash!);
+  await page.locator('#compare-btn').click();
+  await expect('compare tree shows files changed between the two commits', async () =>
+    (await page.locator('#compare-files .tree-row[data-key^="file:"]').count()) >= 1);
+  await expect('first compared file opens automatically, read-only', async () =>
+    new RegExp(`${seedHash} → ${headHash}`).test((await page.locator('#diff-file-path').textContent()) || ''));
+  await page.locator('#compare-ref-b').fill('');
+  await page.locator('#compare-btn').click();
+  await expect('blank target ref compares base ref against the working tree', async () =>
+    /Working Tree/.test((await page.locator('#diff-file-path').textContent()) || ''));
 
   await page.locator('#tab-commit').click();
 
