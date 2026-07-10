@@ -50,6 +50,14 @@ function collectFiles<T extends { path: string }>(node: TreeNode<T>, out: T[] = 
   return out;
 }
 
+// Every directory key in a file list's tree, for Expand/Collapse All — built
+// with nothing pre-collapsed so nested directories aren't missed.
+function allDirKeys<T extends { path: string }>(files: T[]): string[] {
+  const rows: TreeRow<T>[] = [];
+  flattenRows(buildTree(files), 0, '', rows, new Set());
+  return rows.filter((r) => r.kind === 'dir').map((r) => r.key);
+}
+
 function flattenRows<T extends { path: string }>(
   node: TreeNode<T>,
   depth: number,

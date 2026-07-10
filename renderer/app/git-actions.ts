@@ -63,6 +63,7 @@ async function doCommit(alsoPush: boolean): Promise<void> {
     }
     await refreshStatus();
     if (state.view === 'log') await loadLog(true);
+    else if (state.view === 'compare') await refreshCompare();
   } catch (err) {
     toast(errMsg(err), true);
   } finally {
@@ -122,6 +123,7 @@ async function doPull(): Promise<void> {
     toast(out.trim() ? out.trim().split('\n').pop()! : 'Pulled');
     await refreshStatus();
     if (state.view === 'log') await loadLog(true);
+    else if (state.view === 'compare') await refreshCompare();
   } catch (err) {
     statusMsg('');
     toast('Pull failed: ' + errMsg(err), true);

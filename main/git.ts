@@ -260,26 +260,28 @@ function classifyDiff(origBuf: Buffer, modBuf: Buffer, relPath: string): DiffPay
   return result;
 }
 
-// On-demand image payloads for the preview toggle. `hash` selects a commit
-// diff (parent vs commit); otherwise HEAD vs worktree.
+// On-demand image payloads for the preview toggle. `leftRef` defaults to HEAD
+// (worktree tab); `rightRef` absent or 'WORKTREE' reads the disk file,
+// otherwise reads that ref's blob (Log/Compare tab).
 export async function imageData(
   root: string,
   relPath: string,
   type: ChangeType,
   origPath: string | null,
-  hash?: string | null
+  leftRef?: string | null,
+  rightRef?: string | null
 ): Promise<ImageDataResult> {
   const abs = insideRepo(root, relPath);
   const mime = imageMime(relPath);
   if (!mime) throw new Error('Not an image: ' + relPath);
   let origBuf: Buffer = Buffer.alloc(0);
   if (type !== 'ADDED' && type !== 'UNVERSIONED') {
-    origBuf = await showFileAt(root, hash ? `${hash}^` : 'HEAD', origPath || relPath);
+    origBuf = await showFileAt(root, leftRef || 'HEAD', origPath || relPath);
   }
   let modBuf: Buffer = Buffer.alloc(0);
   if (type !== 'DELETED') {
-    if (hash) {
-      modBuf = await showFileAt(root, hash, relPath);
+    if (rightRef && rightRef !== 'WORKTREE') {
+      modBuf = await showFileAt(root, rightRef, relPath);
     } else {
       try {
         modBuf = await fs.readFile(abs);
@@ -644,21 +646,12 @@ export async function log(root: string, { skip = 0, limit = 200, path: relPath =
   }));
 }
 
-export async function commitDetails(root: string, hash: string): Promise<CommitDetails> {
-  const meta = await git(root, [
-    'show', '--no-patch', `--pretty=format:%H%x00%h%x00%P%x00%an%x00%ae%x00%at%x00%B`, hash,
-  ]);
-  const [full, short, parents, author, email, time, body] = meta.split('\0');
-  const parentList = parents ? parents.split(' ').filter(Boolean) : [];
-  // Changed files vs the first parent (or the empty tree for a root commit).
-  const diffArgs = parentList.length
-    ? ['diff-tree', '-r', '-z', '-M', '--name-status', `${hash}^`, hash]
-    : ['diff-tree', '-r', '-z', '-M', '--name-status', '--root', hash];
-  const out = await git(root, diffArgs);
+// Parses `--name-status -z` output (optionally prefixed by a commit id, as
+// `diff-tree --root` does) into the shared CommitFile shape.
+function parseNameStatus(out: string): CommitFile[] {
   const tokens = out.split('\0').filter(Boolean);
   const files: CommitFile[] = [];
   let i = 0;
-  // --root prefixes output with the commit id itself.
   if (tokens[0] && /^[0-9a-f]{40}$/.test(tokens[0])) i = 1;
   for (; i < tokens.length; i++) {
     const st = tokens[i]![0];
@@ -673,6 +666,20 @@ export async function commitDetails(root: string, hash: string): Promise<CommitD
     }
   }
   files.sort((a, b) => a.path.localeCompare(b.path));
+  return files;
+}
+
+export async function commitDetails(root: string, hash: string): Promise<CommitDetails> {
+  const meta = await git(root, [
+    'show', '--no-patch', `--pretty=format:%H%x00%h%x00%P%x00%an%x00%ae%x00%at%x00%B`, hash,
+  ]);
+  const [full, short, parents, author, email, time, body] = meta.split('\0');
+  const parentList = parents ? parents.split(' ').filter(Boolean) : [];
+  // Changed files vs the first parent (or the empty tree for a root commit).
+  const diffArgs = parentList.length
+    ? ['diff-tree', '-r', '-z', '-M', '--name-status', `${hash}^`, hash]
+    : ['diff-tree', '-r', '-z', '-M', '--name-status', '--root', hash];
+  const out = await git(root, diffArgs);
   return {
     hash: full!,
     short: short!,
@@ -681,35 +688,45 @@ export async function commitDetails(root: string, hash: string): Promise<CommitD
     email: email!,
     time: Number(time) * 1000,
     message: (body || '').trimEnd(),
-    files,
+    files: parseNameStatus(out),
   };
 }
 
-// Diff of one file inside a commit: parent version vs commit version.
-// `ref2` overrides the right side (e.g. 'WORKTREE' compares against disk).
-export async function commitFileDiff(
+// Changed-file list between two arbitrary refs. `refB` falsy or 'WORKTREE'
+// compares refA against the working tree (plain `git diff <ref>` already
+// does this — no special-casing needed beyond omitting the second arg).
+export async function compareRefs(root: string, refA: string, refB: string | null): Promise<CommitFile[]> {
+  const args = ['diff', '--name-status', '-z', '-M', refA];
+  if (refB && refB !== 'WORKTREE') args.push(refB);
+  const out = await git(root, args);
+  return parseNameStatus(out);
+}
+
+// Diff of one file between two arbitrary refs. `refB` of 'WORKTREE' compares
+// against disk instead of a committed ref.
+export async function refFileDiff(
   root: string,
-  hash: string,
+  refA: string,
+  refB: string,
   relPath: string,
   type: ChangeType,
-  origPath: string | null,
-  ref2?: string | null
+  origPath: string | null
 ): Promise<DiffPayload> {
   const abs = insideRepo(root, relPath);
   let origBuf: Buffer = Buffer.alloc(0);
   if (type !== 'ADDED') {
-    origBuf = await showFileAt(root, `${hash}^`, origPath || relPath);
+    origBuf = await showFileAt(root, refA, origPath || relPath);
   }
   let modBuf: Buffer = Buffer.alloc(0);
   if (type !== 'DELETED') {
-    if (ref2 === 'WORKTREE') {
+    if (refB === 'WORKTREE') {
       try {
         modBuf = await fs.readFile(abs);
       } catch {
         modBuf = Buffer.alloc(0);
       }
     } else {
-      modBuf = await showFileAt(root, ref2 || hash, relPath);
+      modBuf = await showFileAt(root, refB, relPath);
     }
   }
   return classifyDiff(origBuf, modBuf, relPath);

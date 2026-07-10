@@ -197,6 +197,7 @@ async function checkoutBranch(name: string, create: boolean): Promise<void> {
     toast((create ? 'Created branch ' : 'Switched to ') + name);
     await refreshStatus();
     if (state.view === 'log') await loadLog(true);
+    else if (state.view === 'compare') await refreshCompare();
   } catch (err) {
     statusMsg('');
     toast('Checkout failed: ' + errMsg(err), true);
