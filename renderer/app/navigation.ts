@@ -29,9 +29,11 @@ function gotoChange(c: monaco.editor.ILineChange): void {
 // Worktree tree nav and commit-file-list nav both walk "the next file" —
 // which list depends on which diff pane mode is active (see paneMode()).
 function selectNextFile(revealEnd?: boolean): boolean {
+  if (state.view === 'compare') return selectCompareFileByOffset(1, revealEnd);
   return state.readOnlyDiff ? selectCommitFileByOffset(1, revealEnd) : selectFileByOffset(1, revealEnd);
 }
 function selectPrevFile(revealEnd?: boolean): boolean {
+  if (state.view === 'compare') return selectCompareFileByOffset(-1, revealEnd);
   return state.readOnlyDiff ? selectCommitFileByOffset(-1, revealEnd) : selectFileByOffset(-1, revealEnd);
 }
 

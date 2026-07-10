@@ -1,5 +1,11 @@
 'use strict';
 
+// Sandboxed preload scripts (webPreferences.sandbox: true) run through
+// Electron's restricted preload loader, which can't resolve relative
+// require()s to sibling files — only 'electron' and a few Node built-ins are
+// available. `yarn build:preload` (esbuild) bundles this file's local
+// imports into a single main/preload.js after tsc's normal per-file emit, so
+// there's nothing left for that loader to fail on.
 import { contextBridge, ipcRenderer } from 'electron';
 import * as keymap from './keymap';
 import * as themes from './themes';
@@ -33,10 +39,11 @@ const api: DiffierApi = {
   gitCreateBranch: (name) => call('git:createBranch', name),
   gitLog: (opts) => call('git:log', opts),
   gitCommitDetails: (hash) => call('git:commitDetails', hash),
-  gitCommitFileDiff: (hash, relPath, type, origPath, ref2) =>
-    call('git:commitFileDiff', hash, relPath, type, origPath, ref2),
-  gitImageData: (relPath, type, origPath, hash) =>
-    call('git:imageData', relPath, type, origPath, hash),
+  gitCompareRefs: (refA, refB) => call('git:compareRefs', refA, refB),
+  gitRefFileDiff: (refA, refB, relPath, type, origPath) =>
+    call('git:refFileDiff', refA, refB, relPath, type, origPath),
+  gitImageData: (relPath, type, origPath, leftRef, rightRef) =>
+    call('git:imageData', relPath, type, origPath, leftRef, rightRef),
   gitStashList: () => call('git:stashList'),
   gitStashPush: (message, includeUntracked) => call('git:stashPush', message, includeUntracked),
   gitStashPop: (ref) => call('git:stashPop', ref),

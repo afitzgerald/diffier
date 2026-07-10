@@ -137,13 +137,29 @@ async function main(): Promise<void> {
   const rootDet = await gitlib.commitDetails(tmp, lg[1]!.hash);
   assert.ok(rootDet.files.every((f) => f.type === 'ADDED'), 'root commit files are ADDED');
 
-  const cfd = await gitlib.commitFileDiff(tmp, lg[0]!.hash, 'src/app.js', 'MODIFIED', null);
+  const cfd = await gitlib.refFileDiff(tmp, `${lg[0]!.hash}^`, lg[0]!.hash, 'src/app.js', 'MODIFIED', null);
   assert.strictEqual(cfd.modified, 'edited\n');
   assert.strictEqual(cfd.original, 'line1\nline2\nline3\n');
 
   // File history follows the file (both commits touched src/app.js).
   const hist = await gitlib.log(tmp, { path: 'src/app.js' });
   assert.strictEqual(hist.length, 2);
+
+  // ------------------------------------------------------ compare (two refs)
+  const cmp = await gitlib.compareRefs(tmp, lg[1]!.hash, lg[0]!.hash);
+  assert.ok(cmp.some((f) => f.path === 'src/app.js'), 'compareRefs missed the modified file');
+
+  const cmpWorktree = await gitlib.compareRefs(tmp, lg[1]!.hash, null);
+  assert.ok(cmpWorktree.some((f) => f.path === 'src/app.js'), 'compareRefs vs worktree missed the file');
+
+  const refDiff = await gitlib.refFileDiff(tmp, lg[1]!.hash, lg[0]!.hash, 'src/app.js', 'MODIFIED', null);
+  assert.strictEqual(refDiff.original, 'line1\nline2\nline3\n');
+  assert.strictEqual(refDiff.modified, 'edited\n');
+
+  fs.writeFileSync(path.join(tmp, 'src/app.js'), 'edited\nmore\n');
+  const refDiffWorktree = await gitlib.refFileDiff(tmp, lg[0]!.hash, 'WORKTREE', 'src/app.js', 'MODIFIED', null);
+  assert.strictEqual(refDiffWorktree.modified, 'edited\nmore\n');
+  execFileSync('git', ['checkout', '--', 'src/app.js'], { cwd: tmp });
 
   // ------------------------------------------------------------- branches
   run('branch', 'feature');
@@ -341,10 +357,10 @@ async function main(): Promise<void> {
   const imgDeleted = await gitlib.imageData(tmp, 'pic.png', 'DELETED', null);
   assert.strictEqual(imgDeleted.originalImage, Buffer.from([1, 2, 3]).toString('base64'));
   assert.strictEqual(imgDeleted.modifiedImage, null, 'deleted image has no modified side');
-  // Commit-view lookup: hash pins both sides to that commit's parent/self
-  // instead of HEAD/worktree.
+  // Commit-view lookup: explicit left/right refs pin both sides to that
+  // commit's parent/self instead of HEAD/worktree.
   const picCommit = (await gitlib.log(tmp, { path: 'pic.png' }))[0]!.hash;
-  const imgAtCommit = await gitlib.imageData(tmp, 'pic.png', 'ADDED', null, picCommit);
+  const imgAtCommit = await gitlib.imageData(tmp, 'pic.png', 'ADDED', null, `${picCommit}^`, picCommit);
   assert.strictEqual(imgAtCommit.originalImage, null, 'pic.png had no parent version at the adding commit');
   assert.strictEqual(imgAtCommit.modifiedImage, Buffer.from([1, 2, 3]).toString('base64'));
 

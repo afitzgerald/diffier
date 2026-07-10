@@ -8,11 +8,12 @@
   "main": "main/main.js",
   "scripts": {
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.highlighter.json --noEmit && tsc -p tsconfig.test.json --noEmit",
-    "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && tsc -p tsconfig.test.json",
+    "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && tsc -p tsconfig.test.json && yarn build:preload",
     "start": "yarn build && electron .",
     "smoke": "yarn build && DIFFIER_SMOKE=1 electron --no-sandbox .",
     "test": "yarn build && node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js",
     "build:highlighter": "esbuild renderer/highlighter-entry.ts --bundle --format=iife --minify --log-level=warning --outfile=renderer/highlighter.js",
+    "build:preload": "esbuild main/preload.ts --bundle --platform=node --format=cjs --external:electron --log-level=warning --outfile=main/preload.js",
     "postinstall": "yarn build:highlighter || node -e \"console.warn('shiki highlighter bundle skipped; falling back to built-in grammars')\"",
     "dist": "yarn build && yarn build:highlighter && BUILD_NUMBER=${BUILD_NUMBER:-dev} electron-builder --mac"
   },

@@ -416,6 +416,7 @@ kbd {
 #conflict-bar::before,
 #tab-commit::before,
 #tab-log::before,
+#tab-compare::before,
 #btn-commit-push::before {
   content: "";
   display: inline-block;
@@ -433,6 +434,7 @@ kbd {
 #status-branch::before,
 #tab-commit::before,
 #tab-log::before,
+#tab-compare::before,
 #btn-commit-push::before {
   margin-right: 4px;
 }
@@ -453,6 +455,10 @@ kbd {
 #tab-log::before {
   -webkit-mask-image: url('icons/activity.svg');
   mask-image: url('icons/activity.svg');
+}
+#tab-compare::before {
+  -webkit-mask-image: url('icons/compare.svg');
+  mask-image: url('icons/compare.svg');
 }
 #btn-commit-push::before {
   -webkit-mask-image: url('icons/push.svg');
@@ -702,13 +708,13 @@ kbd {
 .panel-tab:hover { background: var(--hover); }
 .panel-tab.active { color: var(--text-bright); border-bottom-color: var(--accent); }
 
-#commit-view, #log-view {
+#commit-view, #log-view, #compare-view {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
-#commit-view.hidden, #log-view.hidden { display: none; }
+#commit-view.hidden, #log-view.hidden, #compare-view.hidden { display: none; }
 
 .spacer { flex: 1; }
 .hidden { display: none !important; }
@@ -754,6 +760,38 @@ kbd {
   font-family: var(--font-mono);
   flex: 1;
 }
+
+/* ----------------------------------------------------------- compare view */
+
+#compare-refs-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+#compare-refs-row input {
+  flex: 1;
+  min-width: 0;
+  background: var(--input-bg);
+  color: var(--text-bright);
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  outline: none;
+}
+#compare-refs-row input:focus { border-color: var(--accent); }
+
+#compare-files {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  outline: none;
+  padding: 4px 0;
+}
+#compare-files .empty-msg { padding: 12px; color: var(--dim); text-align: center; }
 
 #log-list {
   flex: 1;
