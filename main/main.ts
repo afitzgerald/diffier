@@ -255,15 +255,24 @@ handle('git:checkout', (state, name: string) => gitlib.checkout(requireRepo(stat
 handle('git:createBranch', (state, name: string) => gitlib.createBranch(requireRepo(state), name));
 handle('git:log', (state, opts: gitlib.LogOptions) => gitlib.log(requireRepo(state), opts || {}));
 handle('git:commitDetails', (state, hash: string) => gitlib.commitDetails(requireRepo(state), hash));
+handle('git:compareRefs', (state, refA: string, refB: string | null) =>
+  gitlib.compareRefs(requireRepo(state), refA, refB)
+);
 handle(
-  'git:commitFileDiff',
-  (state, hash: string, relPath: string, type: gitlib.ChangeType, origPath: string | null, ref2?: string | null) =>
-    gitlib.commitFileDiff(requireRepo(state), hash, relPath, type, origPath, ref2)
+  'git:refFileDiff',
+  (state, refA: string, refB: string, relPath: string, type: gitlib.ChangeType, origPath: string | null) =>
+    gitlib.refFileDiff(requireRepo(state), refA, refB, relPath, type, origPath)
 );
 handle(
   'git:imageData',
-  (state, relPath: string, type: gitlib.ChangeType, origPath: string | null, hash?: string | null) =>
-    gitlib.imageData(requireRepo(state), relPath, type, origPath, hash)
+  (
+    state,
+    relPath: string,
+    type: gitlib.ChangeType,
+    origPath: string | null,
+    leftRef?: string | null,
+    rightRef?: string | null
+  ) => gitlib.imageData(requireRepo(state), relPath, type, origPath, leftRef, rightRef)
 );
 handle('git:stashList', (state) => gitlib.stashList(requireRepo(state)));
 handle('git:stashPush', (state, message?: string | null, includeUntracked?: boolean) =>

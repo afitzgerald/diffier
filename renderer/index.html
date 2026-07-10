@@ -22,6 +22,7 @@
         <span class="panel-tabs">
           <button class="panel-tab active" id="tab-commit" data-view="commit">Commit</button>
           <button class="panel-tab" id="tab-log" data-view="log">Log</button>
+          <button class="panel-tab" id="tab-compare" data-view="compare">Compare</button>
         </span>
         <span class="panel-actions">
           <button class="icon-btn svg-icon" id="btn-refresh" title="Refresh File Status" style="--icon: url('icons/refresh.svg')"></button>
@@ -72,6 +73,19 @@
           <div id="log-details-meta"></div>
           <div id="log-details-files"></div>
         </div>
+      </div>
+
+      <div id="compare-view" class="hidden">
+        <div id="compare-refs-row">
+          <input id="compare-ref-a" type="text" placeholder="Base ref (branch, tag, hash)…"
+                 list="compare-branch-list" spellcheck="false" />
+          <span class="dim">→</span>
+          <input id="compare-ref-b" type="text" placeholder="Target ref (blank = Working Tree)…"
+                 list="compare-branch-list" spellcheck="false" />
+          <datalist id="compare-branch-list"></datalist>
+          <button id="compare-btn" class="primary" title="Compare">Compare</button>
+        </div>
+        <div id="compare-files" tabindex="0" aria-label="Compared files"></div>
       </div>
     </div>
 
@@ -285,6 +299,7 @@
   <script src="app/popups.js"></script>
   <script src="app/stash.js"></script>
   <script src="app/log.js"></script>
+  <script src="app/compare.js"></script>
   <script src="app/actions.js"></script>
   <script src="app/settings-dialog.js"></script>
   <script src="app/about-dialog.js"></script>

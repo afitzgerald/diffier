@@ -12,6 +12,7 @@ import type {
   BranchesResult,
   ChangeType,
   CommitDetails,
+  CommitFile,
   ConflictInfoResult,
   DiffPayload,
   FileDiffResult,
@@ -91,18 +92,20 @@ export interface DiffierApi {
   gitCreateBranch(name: string): Promise<string>;
   gitLog(opts: LogOptions): Promise<LogEntry[]>;
   gitCommitDetails(hash: string): Promise<CommitDetails>;
-  gitCommitFileDiff(
-    hash: string,
+  gitCompareRefs(refA: string, refB: string | null): Promise<CommitFile[]>;
+  gitRefFileDiff(
+    refA: string,
+    refB: string,
     relPath: string,
     type: ChangeType,
-    origPath: string | null,
-    ref2?: string | null
+    origPath: string | null
   ): Promise<DiffPayload>;
   gitImageData(
     relPath: string,
     type: ChangeType,
     origPath: string | null,
-    hash?: string | null
+    leftRef?: string | null,
+    rightRef?: string | null
   ): Promise<ImageDataResult>;
   gitStashList(): Promise<StashEntry[]>;
   gitStashPush(message?: string | null, includeUntracked?: boolean): Promise<string>;

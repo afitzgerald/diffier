@@ -112,7 +112,8 @@ function presentDiff(diff: DiffPayload, file: DiffableFile, { readOnly, revealEn
   if (diff.image) {
     state.imageDiff = {
       file,
-      hash: state.readOnlyDiff ? state.readOnlyDiff.hash : null,
+      leftRef: state.readOnlyDiff ? state.readOnlyDiff.leftRef : null,
+      rightRef: state.readOnlyDiff ? state.readOnlyDiff.rightRef : null,
       // diff.image guarantees these are populated even though DiffPayload's
       // fields are optional (also covering the tooLarge/binary variants).
       payload: diff.originalImage !== undefined
@@ -188,32 +189,46 @@ async function openDiff(file: FileEntry, revealEnd?: boolean): Promise<void> {
   });
 }
 
-// Read-only diff of one file inside a commit (Log tab / file history).
-async function openCommitFileDiff(commit: CommitDetails, file: CommitFile, revealEnd?: boolean): Promise<void> {
+// Read-only diff of one file between two arbitrary refs (Log tab's parent-vs-
+// commit view and the Compare tab's arbitrary-ref-vs-ref view both go through
+// this). `rightRef` of 'WORKTREE' compares against the working tree on disk.
+async function openRefDiff(
+  leftRef: string,
+  rightRef: string,
+  file: CommitFile,
+  label: string,
+  revealEnd?: boolean
+): Promise<void> {
   await monacoReady;
   await autosaveIfDirty();
 
   state.current = null;
-  state.readOnlyDiff = { hash: commit.hash, path: file.path };
+  state.readOnlyDiff = { leftRef, rightRef, path: file.path };
   resetDiffPane();
-  setDiffHeader(file, ` @ ${commit.short}`);
+  setDiffHeader(file, label);
 
   let diff: DiffPayload;
   try {
-    diff = await window.api.gitCommitFileDiff(commit.hash, file.path, file.type, file.origPath);
+    diff = await window.api.gitRefFileDiff(leftRef, rightRef, file.path, file.type, file.origPath);
   } catch (err) {
     toast('Failed to load diff: ' + errMsg(err), true);
     return;
   }
   if (
     !state.readOnlyDiff ||
-    state.readOnlyDiff.hash !== commit.hash ||
+    state.readOnlyDiff.leftRef !== leftRef ||
+    state.readOnlyDiff.rightRef !== rightRef ||
     state.readOnlyDiff.path !== file.path
   ) {
     return; // user clicked another file while this diff loaded
   }
 
   presentDiff(diff, file, { readOnly: true, revealEnd: !!revealEnd, trackPath: false });
+}
+
+// Read-only diff of one file inside a commit (Log tab / file history).
+function openCommitFileDiff(commit: CommitDetails, file: CommitFile, revealEnd?: boolean): Promise<void> {
+  return openRefDiff(`${commit.hash}^`, commit.hash, file, ` @ ${commit.short}`, revealEnd);
 }
 
 // Rendered markdown preview: a single unified document built from the live

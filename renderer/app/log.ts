@@ -11,15 +11,24 @@ const LANE_W = 10;
 const LOG_ROW_H = 24;
 const LANE_COLORS = ['#3574f0', '#73bd79', '#ed7261', '#d9a343', '#43b9c9', '#b07fe8', '#f75464'];
 
-function setView(view: 'commit' | 'log'): void {
+function setView(view: 'commit' | 'log' | 'compare'): void {
   state.view = view;
   $('commit-view').classList.toggle('hidden', view !== 'commit');
   $('log-view').classList.toggle('hidden', view !== 'log');
+  $('compare-view').classList.toggle('hidden', view !== 'compare');
   $('tab-commit').classList.toggle('active', view === 'commit');
   $('tab-log').classList.toggle('active', view === 'log');
+  $('tab-compare').classList.toggle('active', view === 'compare');
+  // Rollback acts on the commit tab's worktree tree selection — meaningless
+  // (and misleading) while Log or Compare is showing a different file list.
+  // Expand/Collapse All apply per-view (see boot.ts) so they stay visible.
+  $('btn-rollback').classList.toggle('hidden', view !== 'commit');
   if (view === 'log') {
     if (!state.log.entries.length) loadLog(true);
     $('log-list').focus();
+  } else if (view === 'compare') {
+    populateCompareRefList();
+    $('compare-ref-a').focus();
   } else {
     treeEl.focus();
   }
@@ -414,3 +423,4 @@ $('log-list').addEventListener('scroll', () => {
 
 $('tab-commit').addEventListener('click', () => setView('commit'));
 $('tab-log').addEventListener('click', () => setView('log'));
+$('tab-compare').addEventListener('click', () => setView('compare'));
