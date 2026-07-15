@@ -814,6 +814,7 @@ kbd {
 .log-row:hover { background: var(--hover); }
 .log-row.selected { background: var(--selection); color: var(--selection-fg); }
 .log-row.selected .dim { color: var(--selection-fg); opacity: 0.75; }
+.log-row.marked { outline: 1px solid var(--accent); outline-offset: -1px; }
 
 .log-graph { flex-shrink: 0; height: 24px; }
 
