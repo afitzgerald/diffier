@@ -95,6 +95,7 @@ interface LogState {
   collapsed: Set<string>; // collapsed directory keys in the commit file tree
   rows: TreeRow<CommitFile>[]; // flattened visible rows of the commit file tree
   gen?: number;
+  marked: Set<string>; // ctrl/cmd-clicked hashes, capped at 2, for "Compare Selected Commits"
 }
 
 interface CompareState {
@@ -167,6 +168,7 @@ const state: AppState = {
     details: null,
     collapsed: new Set(),
     rows: [],
+    marked: new Set(),
   },
   compare: {
     refA: '',

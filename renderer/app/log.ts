@@ -47,6 +47,7 @@ function resetLog(filePath: string | null): void {
   state.log.details = null;
   state.log.collapsed = new Set();
   state.log.rows = [];
+  state.log.marked = new Set();
   $('log-details').classList.add('hidden');
 }
 
@@ -180,6 +181,7 @@ function buildLogRow(c: LogEntryWithGraph): HTMLElement {
   row.className = 'log-row';
   row.dataset.hash = c.hash;
   if (c.hash === state.log.selected) row.classList.add('selected');
+  if (state.log.marked.has(c.hash)) row.classList.add('marked');
 
   if (!state.log.filePath && c.graph) {
     const graph = document.createElement('span');
@@ -212,8 +214,61 @@ function buildLogRow(c: LogEntryWithGraph): HTMLElement {
   date.title = new Date(c.time).toLocaleString();
   row.appendChild(date);
 
-  row.addEventListener('click', () => selectLogEntry(c));
+  row.addEventListener('click', (e) => {
+    if (e.metaKey || e.ctrlKey) toggleLogMark(c.hash);
+    else selectLogEntry(c);
+  });
+  row.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    openLogContextMenu(e, c.hash);
+  });
   return row;
+}
+
+// Ctrl/Cmd-click marks a commit for comparison; capped at 2 (oldest mark
+// dropped), mirroring VCS-graph tools' "select two, then compare" gesture.
+function toggleLogMark(hash: string): void {
+  if (state.log.marked.has(hash)) {
+    state.log.marked.delete(hash);
+  } else {
+    state.log.marked.add(hash);
+    while (state.log.marked.size > 2) state.log.marked.delete(state.log.marked.values().next().value!);
+  }
+  for (const el of $('log-list').querySelectorAll('.log-row')) {
+    (el as HTMLElement).classList.toggle('marked', state.log.marked.has((el as HTMLElement).dataset.hash!));
+  }
+}
+
+function openLogContextMenu(e: MouseEvent, hash: string): void {
+  const marked = new Set(state.log.marked);
+  if (marked.size < 2) marked.add(hash);
+  const menu = $('context-menu');
+  menu.textContent = '';
+  if (marked.size === 2) {
+    const [a, b] = [...marked];
+    menu.appendChild(
+      popupItem('Compare Selected Commits', { icon: '⇄', onClick: () => compareLogCommits(a!, b!) })
+    );
+  } else {
+    menu.appendChild(popupItem('Ctrl/Cmd-click another commit to compare', { section: true }));
+  }
+  menu.classList.remove('hidden');
+  menu.style.right = menu.style.bottom = 'auto';
+  menu.style.left = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8) + 'px';
+}
+
+// Diffs oldest -> newest (by position in the currently loaded log) so the
+// comparison reads as "what changed going from A to B", not reverse.
+function compareLogCommits(hashA: string, hashB: string): void {
+  const idxA = state.log.entries.findIndex((c) => c.hash === hashA);
+  const idxB = state.log.entries.findIndex((c) => c.hash === hashB);
+  const [older, newer] = idxA > idxB ? [hashA, hashB] : [hashB, hashA];
+  state.log.marked.clear();
+  setView('compare');
+  $<HTMLInputElement>('compare-ref-a').value = older;
+  $<HTMLInputElement>('compare-ref-b').value = newer;
+  runCompare();
 }
 
 // Keep exactly one trailing "Load more" row, reflecting done/loading state.
