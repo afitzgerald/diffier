@@ -46,7 +46,7 @@
       "node_modules/monaco-editor/min-maps/**",
       "package.json"
     ],
-    "icon": "build/icon.png",
+    "icon": "build/icon.icns",
     "afterSign": "build/afterSign.js",
     "artifactName": "${productName}-build${env.BUILD_NUMBER}-${arch}.${ext}",
     "mac": {
