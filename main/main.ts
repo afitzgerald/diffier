@@ -539,7 +539,7 @@ function buildMenu(): void {
 async function installCliLauncher(): Promise<void> {
   // Resolve to an absolute path in the caller's shell — the app's own cwd
   // is / when launched via `open`, so relative arguments would be useless.
-  const script = `#!/bin/sh\ntarget="$(cd "\${1:-.}" 2>/dev/null && pwd)" || {\n  echo "diffier: no such directory: \${1:-.}" >&2\n  exit 1\n}\nexec open -a "Diffier" --args "$target"\n`;
+  const script = `#!/bin/sh\ntarget="$(cd "\${1:-.}" 2>/dev/null && pwd)" || {\n  echo "diffier: no such directory: \${1:-.}" >&2\n  exit 1\n}\nexec open -n -a "Diffier" --args "$target"\n`;
   const target = '/usr/local/bin/diffier';
   const parent = BrowserWindow.getFocusedWindow();
   const show = (opts: Electron.MessageBoxOptions) =>
