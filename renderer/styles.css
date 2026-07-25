@@ -80,7 +80,7 @@ html, body {
 }
 
 #commit-panel {
-  width: 300px;
+  width: 360px;
   min-width: 180px;
   max-width: 60vw;
   background: var(--panel-bg);

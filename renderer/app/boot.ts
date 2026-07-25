@@ -182,7 +182,7 @@ $('amend-checkbox').addEventListener('change', async (e) => {
     if (dragging) {
       dragging = false;
       document.body.style.cursor = '';
-      window.api.setSettings({ panelWidth: parseInt(panel.style.width, 10) || 300 });
+      window.api.setSettings({ panelWidth: parseInt(panel.style.width, 10) || 360 });
     }
   });
 })();
