@@ -30,16 +30,16 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: yarn dist -c.buildVersion=$BUILD_NUMBER --publish never
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Diffier-dmg
-          path: dist/*.dmg
-
       - name: Prune old artifacts (keep last 2)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh api repos/${{ github.repository }}/actions/artifacts --paginate \
             --jq '.artifacts[] | select(.name=="Diffier-dmg") | [.id, .created_at] | @tsv' \
-            | sort -k2 -r | tail -n +3 | cut -f1 \
+            | sort -k2 -r | tail -n +2 | cut -f1 \
             | xargs -I{} gh api -X DELETE repos/${{ github.repository }}/actions/artifacts/{}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Diffier-dmg
+          path: dist/*.dmg
