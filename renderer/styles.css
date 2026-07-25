@@ -1121,6 +1121,19 @@ kbd {
 }
 #markdown-diff.hidden { display: none; }
 
+#md-mode-bar {
+  position: absolute;
+  top: 6px;
+  right: 16px;
+  display: flex;
+  gap: 4px;
+  z-index: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px;
+}
+
 /* Overview-ruler-style strip mirroring the Monaco diff editor's right-hand
    change markers, so scanning for changes doesn't require scrolling. */
 .md-diff-ruler {

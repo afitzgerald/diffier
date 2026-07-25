@@ -194,6 +194,8 @@ let originalModel: monaco.editor.ITextModel | null = null;
 let modifiedModel: monaco.editor.ITextModel | null = null;
 let currentModelsPath: string | null = null; // worktree path the diff models were built from
 let suppressModelEvents = false;
+type MdPaneMode = 'diff' | 'old' | 'new';
+let mdMode: MdPaneMode = 'diff'; // which content the markdown pane is showing
 let conflictEditor: monaco.editor.IStandaloneCodeEditor | null = null;
 let conflictModel: monaco.editor.ITextModel | null = null;
 

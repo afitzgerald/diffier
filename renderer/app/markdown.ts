@@ -497,7 +497,14 @@ const markdownRenderer = (() => {
     }
   }
 
-  return { renderMarkdownDiffInto };
+  // Plain render of one side (no diff coloring), full width.
+  function renderMarkdownInto(container: HTMLElement, src: string, base: MarkdownBase | null): void {
+    container.textContent = '';
+    blocks(src.replace(/\r\n?/g, '\n').split('\n'), container, base);
+  }
+
+  return { renderMarkdownDiffInto, renderMarkdownInto };
 })();
 
 const renderMarkdownDiffInto = markdownRenderer.renderMarkdownDiffInto;
+const renderMarkdownInto = markdownRenderer.renderMarkdownInto;

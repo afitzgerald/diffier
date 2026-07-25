@@ -118,11 +118,17 @@ $('btn-md-view').addEventListener('click', (e) => {
   const show = !btn.classList.contains('active');
   btn.classList.toggle('active', show);
   if (show) {
-    showMarkdownDiff();
+    showMarkdownPane('diff');
   } else {
     showPane('diff');
     updateDiffCount();
   }
+});
+
+// Diff / Old / New buttons inside the markdown pane itself.
+$('md-mode-bar').addEventListener('click', (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-md-mode]');
+  if (btn) showMarkdownPane(btn.dataset.mdMode as MdPaneMode);
 });
 
 // Links in rendered markdown never navigate the window (main blocks

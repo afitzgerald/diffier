@@ -58,6 +58,7 @@ function resetDiffPane(): void {
   state.shiftF7Armed = false;
   closeConflictSession();
   state.imageDiff = null;
+  mdMode = 'diff';
   for (const id of ['btn-image-view', 'btn-md-view']) {
     const btn = $(id);
     btn.classList.add('hidden');
@@ -231,17 +232,26 @@ function openCommitFileDiff(commit: CommitDetails, file: CommitFile, revealEnd?:
   return openRefDiff(`${commit.hash}^`, commit.hash, file, ` @ ${commit.short}`, revealEnd);
 }
 
-// Rendered markdown preview: a single unified document built from the live
-// diff models (so unsaved edits show up), with removed blocks (old text) and
-// added blocks (new text) tinted inline and everything unchanged shown once.
-function showMarkdownDiff(): void {
+// Rendered markdown preview: either a single unified document built from the
+// live diff models (so unsaved edits show up), with removed blocks (old text)
+// and added blocks (new text) tinted inline and everything unchanged shown
+// once — or a plain full-width render of just one side.
+function showMarkdownPane(mode: MdPaneMode): void {
   if (!originalModel || !modifiedModel) return;
+  mdMode = mode;
   const relPath = state.current?.path ?? state.readOnlyDiff?.path ?? null;
   const base =
     state.repo && relPath
       ? { root: state.repo.root, dir: relPath.split('/').slice(0, -1).join('/') }
       : null;
-  renderMarkdownDiffInto($('md-diff-body'), originalModel.getValue(), modifiedModel.getValue(), base);
+  if (mode === 'diff') {
+    renderMarkdownDiffInto($('md-diff-body'), originalModel.getValue(), modifiedModel.getValue(), base);
+  } else {
+    renderMarkdownInto($('md-diff-body'), (mode === 'old' ? originalModel : modifiedModel).getValue(), base);
+  }
+  for (const btn of Array.from($('md-mode-bar').querySelectorAll<HTMLElement>('[data-md-mode]'))) {
+    btn.classList.toggle('active', btn.dataset.mdMode === mode);
+  }
   showPane('markdown');
   updateMdDiffRuler();
   resetMdChangeNav();
