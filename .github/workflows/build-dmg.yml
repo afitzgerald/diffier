@@ -34,12 +34,16 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: yarn dist -c.buildVersion=$BUILD_NUMBER --publish never
 
-      - name: Prune old artifacts (keep last 2)
+      - name: Prune old artifacts (keep last 2 successful builds)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh api repos/${{ github.repository }}/actions/artifacts --paginate \
-            --jq '.artifacts[] | select(.name=="Diffier-dmg") | [.id, .created_at] | @tsv' \
+            --jq '.artifacts[] | select(.name=="Diffier-dmg") | [.id, .workflow_run.id, .created_at] | @tsv' \
+            | while IFS=$'\t' read -r id run_id created; do
+                conclusion=$(gh api repos/${{ github.repository }}/actions/runs/$run_id --jq '.conclusion')
+                [ "$conclusion" = "success" ] && printf '%s\t%s\n' "$id" "$created"
+              done \
             | sort -k2 -r | tail -n +2 | cut -f1 \
             | xargs -I{} gh api -X DELETE repos/${{ github.repository }}/actions/artifacts/{}
 
