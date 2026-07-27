@@ -52,11 +52,11 @@ function showImageDiff(diff: ImagePayloadLike): void {
   $('diff-count').textContent = '';
 }
 
-// Common prologue for loading anything new into the diff pane.
-function resetDiffPane(): void {
-  state.f7Armed = false;
-  state.shiftF7Armed = false;
-  closeConflictSession();
+// Image/markdown preview toggles belong to whatever content is on screen, so
+// they're reset when new content is actually installed — not in
+// resetDiffPane(), which also runs on the load path that bails out early
+// because the content turned out to be unchanged (fs-watcher refreshes).
+function resetPreviewToggles(): void {
   state.imageDiff = null;
   mdMode = 'diff';
   for (const id of ['btn-image-view', 'btn-md-view']) {
@@ -64,6 +64,13 @@ function resetDiffPane(): void {
     btn.classList.add('hidden');
     btn.classList.remove('active');
   }
+}
+
+// Common prologue for loading anything new into the diff pane.
+function resetDiffPane(): void {
+  state.f7Armed = false;
+  state.shiftF7Armed = false;
+  closeConflictSession();
 }
 
 interface PresentDiffOptions {
@@ -78,6 +85,7 @@ interface PresentDiffOptions {
 // `revealEnd` positions on the last change instead of the first.
 function presentDiff(diff: DiffPayload, file: DiffableFile, { readOnly, revealEnd, trackPath }: PresentDiffOptions): void {
   disposeModels();
+  resetPreviewToggles();
   showPane('diff');
   setDirty(false);
 
@@ -157,6 +165,7 @@ async function openDiff(file: FileEntry, revealEnd?: boolean): Promise<void> {
   if (file.type === 'CONFLICT') {
     setDirty(false);
     disposeModels();
+    resetPreviewToggles();
     updateDiffCount();
     return openConflict(file);
   }
