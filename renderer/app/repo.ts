@@ -84,8 +84,8 @@ function clearDiffView(): void {
   state.readOnlyDiff = null;
   closeConflictSession();
   disposeModels();
+  resetPreviewToggles();
   showPane('diff');
-  $('btn-image-view').classList.add('hidden');
   $('diff-file-path').textContent = 'No file selected';
   $('diff-file-path').classList.add('dim');
   $('diff-file-icon').textContent = '';
