@@ -943,6 +943,15 @@ async function main(): Promise<void> {
   await expect('zoom reset restores diff editor font size', async () => (await diffFontSize()) === baseDiffFontSize);
   await expect('zoom reset restores markdown font size', async () => (await mdFontSize()) === '13px');
 
+  // A refresh whose diff content is unchanged (fs watcher, focus, manual)
+  // must leave the preview toggles alone — it used to strip the markdown
+  // button off the toolbar while the rendered pane stayed on screen.
+  await page.locator('#btn-refresh').click();
+  await expect('refresh keeps the markdown toggle and the rendered view', async () =>
+    ((await page.locator('#btn-md-view').getAttribute('class')) || '').includes('active') &&
+    !((await page.locator('#btn-md-view').getAttribute('class')) || '').includes('hidden') &&
+    !((await page.locator('#markdown-diff').getAttribute('class')) || '').includes('hidden'));
+
   fs.writeFileSync(path.join(repo, 'plain.txt'), 'plain\n');
   await page.locator('#btn-refresh').click();
   await page.locator('.tree-row[data-key="file:plain.txt"]').click();
