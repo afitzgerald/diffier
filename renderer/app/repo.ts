@@ -48,6 +48,7 @@ async function refreshStatus(keepDiff?: boolean): Promise<void> {
   }
   const paths = new Set(st.files.map((f) => f.path));
   for (const p of [...state.checked]) if (!paths.has(p)) state.checked.delete(p);
+  for (const p of [...state.known]) if (!paths.has(p)) state.known.delete(p);
   for (const p of [...state.hunks.keys()]) if (!paths.has(p)) state.hunks.delete(p);
 
   renderTree();
