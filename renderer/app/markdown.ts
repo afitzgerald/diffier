@@ -78,7 +78,11 @@ const markdownRenderer = (() => {
     if (/^data:image\//i.test(src) || /^https?:\/\//i.test(src)) {
       url = src; // http(s) is blocked by the CSP; the error handler kicks in
     } else if (base && !/^[a-z][a-z0-9+.-]*:/i.test(src)) {
-      const abs = resolveRepoPath(base, src.replace(/^\//, ''));
+      // A leading "/" means repo-root-relative (like a real site root), not
+      // relative to the markdown file's own directory.
+      const abs = src.startsWith('/')
+        ? resolveRepoPath({ root: base.root, dir: '' }, src.slice(1))
+        : resolveRepoPath(base, src);
       if (abs) url = fileUrl(abs);
     }
     if (!url) return fallback();
