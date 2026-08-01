@@ -7,6 +7,7 @@
 // ------------------------------------------------------------- git actions
 
 async function doCommit(alsoPush: boolean): Promise<void> {
+  flushPartialRebuild();
   await autosaveIfDirty();
   const { full, partials, skipped } = commitSelection();
   const files = full.flatMap((f) => (f.origPath ? [f.path, f.origPath] : [f.path]));
