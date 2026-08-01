@@ -90,6 +90,17 @@ function rebuildPartialEntry(path: string): void {
   entry.snapshotOriginal = originalModel!.getValue();
 }
 
+// Run any pending debounced rebuild immediately — called before committing
+// so a commit right after typing doesn't record stale prepared content.
+function flushPartialRebuild(): void {
+  for (const [path, entry] of state.hunks) {
+    if (entry.rebuildTimer === undefined) continue;
+    clearTimeout(entry.rebuildTimer);
+    entry.rebuildTimer = undefined;
+    rebuildPartialEntry(path);
+  }
+}
+
 function toggleHunk(c: monaco.editor.ILineChange): void {
   if (!hunkStagingActive()) return;
   const p = state.current!.path;
