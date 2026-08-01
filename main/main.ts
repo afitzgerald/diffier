@@ -729,9 +729,14 @@ if (SMOKE) {
     });
 
     // Folders dropped on the dock icon / opened via `open -a Diffier <dir>`.
+    // On a cold launch this fires before 'ready', so queue it — otherwise the
+    // request is dropped and the default window opens the last-used repo
+    // instead.
+    const pendingOpenFiles: string[] = [];
     app.on('open-file', (event, p) => {
       event.preventDefault();
       if (app.isReady()) routeExternalOpen(p);
+      else pendingOpenFiles.push(p);
     });
 
     app.whenReady().then(() => {
@@ -739,7 +744,11 @@ if (SMOKE) {
       // dev (`electron .`) it otherwise falls back to Electron's own.
       if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(APP_ICON);
       buildMenu();
-      createWindow(undefined, true);
+      if (pendingOpenFiles.length) {
+        pendingOpenFiles.forEach(routeExternalOpen);
+      } else {
+        createWindow(undefined, true);
+      }
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
       });
