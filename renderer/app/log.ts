@@ -254,10 +254,7 @@ function openLogContextMenu(e: MouseEvent, hash: string): void {
   } else {
     menu.appendChild(popupItem('Ctrl/Cmd-click another commit to compare', { section: true }));
   }
-  menu.classList.remove('hidden');
-  menu.style.right = menu.style.bottom = 'auto';
-  menu.style.left = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8) + 'px';
-  menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8) + 'px';
+  positionMenuAt(menu, e);
 }
 
 // Diffs oldest -> newest (by position in the currently loaded log) so the
@@ -397,7 +394,7 @@ function buildCommitRowEl(row: TreeRow<CommitFile>, det: CommitDetails): HTMLEle
   const el = document.createElement('div');
   el.className = 'tree-row';
   el.dataset.key = row.key;
-  el.style.paddingLeft = 6 + (row.depth + 1) * 14 + 'px';
+  el.style.paddingLeft = indentPx(row.depth);
 
   const chev = document.createElement('span');
   chev.className = 'tree-chevron';
