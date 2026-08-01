@@ -76,6 +76,13 @@ async function main(): Promise<void> {
   await assert.rejects(() => gitlib.fileDiff(tmp, '../etc/passwd', 'MODIFIED', null));
   await assert.rejects(() => gitlib.saveFile(tmp, '../oops.txt', 'x'));
 
+  // A symlinked directory inside the repo pointing outside it must not let
+  // saveFile write through the link, even though the literal path looks fine.
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'diffier-outside-'));
+  fs.symlinkSync(outsideDir, path.join(tmp, 'evil-link'));
+  await assert.rejects(() => gitlib.saveFile(tmp, 'evil-link/pwned.txt', 'x'));
+  assert.strictEqual(fs.existsSync(path.join(outsideDir, 'pwned.txt')), false);
+
   // Save.
   await gitlib.saveFile(tmp, 'src/app.js', 'edited\n');
   assert.strictEqual(fs.readFileSync(path.join(tmp, 'src/app.js'), 'utf8'), 'edited\n');
