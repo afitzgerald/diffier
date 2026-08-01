@@ -308,10 +308,7 @@ export async function fileDiff(
   type: ChangeType,
   origPath: string | null
 ): Promise<FileDiffResult> {
-  const abs = path.join(root, relPath);
-  if (path.relative(root, abs).startsWith('..')) {
-    throw new Error('Path escapes repository root');
-  }
+  const abs = insideRepo(root, relPath);
 
   let origBuf: Buffer = Buffer.alloc(0);
   if (type !== 'ADDED' && type !== 'UNVERSIONED') {
@@ -509,8 +506,12 @@ export async function lastCommitMessage(root: string): Promise<string> {
 export async function rollback(root: string, files: FileEntry[]): Promise<void> {
   const head = await hasHead(root);
   for (const f of files) {
-    const abs = path.join(root, f.path);
-    if (path.relative(root, abs).startsWith('..')) continue;
+    let abs: string;
+    try {
+      abs = insideRepo(root, f.path);
+    } catch {
+      continue;
+    }
     if (f.type === 'UNVERSIONED') {
       await fs.rm(abs, { force: true });
     } else if (f.type === 'ADDED' || !head) {
