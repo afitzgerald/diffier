@@ -24,7 +24,9 @@ function setView(view: 'commit' | 'log' | 'compare'): void {
   // Expand/Collapse All apply per-view (see boot.ts) so they stay visible.
   $('btn-rollback').classList.toggle('hidden', view !== 'commit');
   if (view === 'log') {
-    if (!state.log.entries.length) loadLog(true);
+    // Skip if a load is already in flight (e.g. showFileHistory just started
+    // one) — otherwise this would kick off a second, redundant fetch.
+    if (!state.log.entries.length && !state.log.loading) loadLog(true);
     $('log-list').focus();
   } else if (view === 'compare') {
     populateCompareRefList();
@@ -461,8 +463,8 @@ function selectCommitFileByOffset(delta: number, revealEnd?: boolean): boolean {
 
 function showFileHistory(path: string): void {
   state.log.filePath = path;
+  loadLog(true); // starts loading before setView('log') can start its own
   setView('log');
-  loadLog(true);
 }
 
 $('log-file-filter-clear').addEventListener('click', () => {
