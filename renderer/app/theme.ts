@@ -105,7 +105,7 @@ async function setTheme(id: ThemeId): Promise<void> {
   applyTheme(id);
   try {
     await window.api.setSettings({ theme: state.settings.theme });
-  } catch {
-    /* theme still applied locally */
+  } catch (err) {
+    toast('Failed to save theme: ' + errMsg(err), true);
   }
 }
