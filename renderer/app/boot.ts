@@ -133,14 +133,25 @@ $('md-mode-bar').addEventListener('click', (e) => {
 
 // Links in rendered markdown never navigate the window (main blocks
 // navigation anyway); http(s) targets open in the system browser.
-$('markdown-diff').addEventListener('click', (e) => {
-  const a = (e.target as HTMLElement).closest('a');
-  if (!a) return;
-  e.preventDefault();
+function activateMarkdownLink(a: HTMLAnchorElement): void {
   const href = a.dataset.href || '';
   if (/^https?:\/\//i.test(href)) {
     window.api.openExternal(href).catch((err) => toast('Could not open link: ' + errMsg(err), true));
   }
+}
+$('markdown-diff').addEventListener('click', (e) => {
+  const a = (e.target as HTMLElement).closest('a');
+  if (!a) return;
+  e.preventDefault();
+  activateMarkdownLink(a);
+});
+$('markdown-diff').addEventListener('keydown', (e) => {
+  const ke = e as KeyboardEvent;
+  if (ke.key !== 'Enter') return;
+  const a = (ke.target as HTMLElement).closest('a');
+  if (!a) return;
+  e.preventDefault();
+  activateMarkdownLink(a);
 });
 
 // Conflict bar.
