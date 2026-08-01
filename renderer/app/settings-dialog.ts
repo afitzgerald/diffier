@@ -53,7 +53,8 @@ function renderKeymapDialog(): void {
     });
     row.appendChild(clear);
 
-    const chip = document.createElement('span');
+    const chip = document.createElement('button');
+    chip.type = 'button';
     chip.className = 'keymap-shortcut';
     const norm = km.bindings.get(a.id) ?? null;
     if (km.recordingAction === a.id) {
@@ -65,6 +66,7 @@ function renderKeymapDialog(): void {
     } else {
       chip.textContent = prettyBinding(norm);
     }
+    chip.title = km.recordingAction === a.id ? 'Press the new shortcut' : 'Record a shortcut';
     chip.addEventListener('click', () => {
       km.recordingAction = km.recordingAction === a.id ? null : a.id;
       renderKeymapDialog();
