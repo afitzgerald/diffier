@@ -254,10 +254,7 @@ function openLogContextMenu(e: MouseEvent, hash: string): void {
   } else {
     menu.appendChild(popupItem('Ctrl/Cmd-click another commit to compare', { section: true }));
   }
-  menu.classList.remove('hidden');
-  menu.style.right = menu.style.bottom = 'auto';
-  menu.style.left = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8) + 'px';
-  menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8) + 'px';
+  positionMenuAt(menu, e);
 }
 
 // Diffs oldest -> newest (by position in the currently loaded log) so the
