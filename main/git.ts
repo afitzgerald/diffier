@@ -473,8 +473,10 @@ async function commitWithPartials(
     const tree = (await gitIdx(['write-tree'])).trim();
 
     let parents: string[] = [];
+    let oldHead: string | undefined;
     const commitEnv: NodeJS.ProcessEnv = { ...process.env };
     if (head) {
+      oldHead = (await git(root, ['rev-parse', 'HEAD'])).trim();
       if (amend) {
         parents = (await git(root, ['log', '-1', '--pretty=%P'])).trim().split(' ').filter(Boolean);
         // Amending must not rewrite who wrote the commit, or when.
@@ -485,17 +487,22 @@ async function commitWithPartials(
         commitEnv.GIT_AUTHOR_EMAIL = ae;
         commitEnv.GIT_AUTHOR_DATE = ad;
       } else {
-        parents = [(await git(root, ['rev-parse', 'HEAD'])).trim()];
+        parents = [oldHead];
       }
     }
     const ctArgs = ['commit-tree', tree];
     for (const p of parents) ctArgs.push('-p', p);
     ctArgs.push('-m', msg);
     const newCommit = (await gitOpts(root, ctArgs, { env: commitEnv })).trim();
-    await git(root, [
+    const updateRefArgs = [
       'update-ref', '-m', amend ? 'commit (amend): ' + msg.split('\n')[0] : 'commit: ' + msg.split('\n')[0],
       'HEAD', newCommit,
-    ]);
+    ];
+    // Pass HEAD's pre-commit value as update-ref's expected old value so a
+    // concurrent change to HEAD (another commit, a checkout) aborts this
+    // update instead of silently overwriting it.
+    if (oldHead) updateRefArgs.push(oldHead);
+    await git(root, updateRefArgs);
     // Sync the real index to the new HEAD for the committed paths so the
     // remaining (unchecked) hunks show up as plain unstaged modifications.
     const touched = [...fullFiles, ...partials.map((p) => p.path)];

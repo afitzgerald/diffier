@@ -386,6 +386,35 @@ async function main(): Promise<void> {
   run('worktree', 'add', wt, 'feature');
   assert.strictEqual(await gitlib.isLinkedWorktree(wt), true);
 
+  // ------------------------------------------------------- partial commits
+  // Per-hunk (partial-content) commit: the caller supplies the exact content
+  // to record, guarded by snapshots of the worktree and HEAD content it was
+  // prepared against. Runs in its own repo so it doesn't disturb the commit
+  // graph the assertions above depend on.
+  const tmp3 = fs.mkdtempSync(path.join(os.tmpdir(), 'diffier-test3-'));
+  execFileSync('git', ['init', '-b', 'main'], { cwd: tmp3 });
+  execFileSync('git', ['config', 'user.email', 'test@test.local'], { cwd: tmp3 });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: tmp3 });
+  fs.writeFileSync(path.join(tmp3, 'f.txt'), 'edited\n');
+  execFileSync('git', ['add', '-A'], { cwd: tmp3 });
+  execFileSync('git', ['commit', '-m', 'seed'], { cwd: tmp3 });
+
+  fs.writeFileSync(path.join(tmp3, 'f.txt'), 'edited\npartial\n');
+  await assert.rejects(
+    () =>
+      gitlib.commit(tmp3, [], 'stale partial commit', false, [
+        { path: 'f.txt', content: 'edited\npartial\n', expectedHead: 'stale-head-content\n' },
+      ]),
+    /changed in HEAD/
+  );
+  await gitlib.commit(tmp3, [], 'partial-hunk commit', false, [
+    { path: 'f.txt', content: 'edited\npartial\n', expectedWorktree: 'edited\npartial\n', expectedHead: 'edited\n' },
+  ]);
+  assert.strictEqual(await gitlib.lastCommitMessage(tmp3), 'partial-hunk commit');
+  assert.strictEqual(execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: tmp3 }).toString().trim(), '2');
+  const stHunk = await gitlib.status(tmp3);
+  assert.ok(!stHunk.files.some((f) => f.path === 'f.txt'), 'partial commit left file dirty');
+
   console.log('git.test.js OK');
 }
 
