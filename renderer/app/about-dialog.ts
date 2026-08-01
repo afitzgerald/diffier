@@ -11,9 +11,13 @@ async function openAboutDialog(): Promise<void> {
   aboutOpen = true;
   $('about-overlay').classList.remove('hidden');
   if (!aboutInfoLoaded) {
-    aboutInfoLoaded = true;
-    const info = await window.api.getAppInfo();
-    $('about-version').textContent = `Version ${info.version}`;
+    try {
+      const info = await window.api.getAppInfo();
+      $('about-version').textContent = `Version ${info.version}`;
+      aboutInfoLoaded = true;
+    } catch (err) {
+      toast('Failed to load app info: ' + errMsg(err), true);
+    }
   }
 }
 
