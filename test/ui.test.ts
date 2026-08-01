@@ -108,6 +108,7 @@ const rpc: Record<string, (args: unknown[]) => Promise<unknown>> = {
   },
   'git:rollback': ([files]) => gitlib.rollback(repo, files as gitlib.FileEntry[]),
   'git:lastMessage': () => gitlib.lastCommitMessage(repo),
+  'git:push': () => gitlib.push(repo),
   'git:pull': () => gitlib.pull(repo),
   'git:fetch': () => gitlib.fetch(repo),
   'git:branches': () => gitlib.branches(repo),
