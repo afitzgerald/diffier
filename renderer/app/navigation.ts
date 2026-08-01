@@ -57,6 +57,11 @@ function resetMdChangeNav(): void {
 }
 
 function gotoMdBlock(b: HTMLElement): void {
+  // Keep mdChangeIndex in sync so a ruler click, which passes the block
+  // directly rather than an index, doesn't leave next/prevMarkdownChange
+  // resuming from wherever navigation last left off.
+  const idx = markdownChangeBlocks().indexOf(b);
+  if (idx !== -1) mdChangeIndex = idx;
   b.scrollIntoView({ block: 'center', behavior: 'auto' });
 }
 
