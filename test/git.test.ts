@@ -161,6 +161,14 @@ async function main(): Promise<void> {
   assert.strictEqual(refDiffWorktree.modified, 'edited\nmore\n');
   execFileSync('git', ['checkout', '--', 'src/app.js'], { cwd: tmp });
 
+  // Option-injection protection: a ref/hash starting with "-" must be
+  // rejected rather than passed through to the git CLI as a flag.
+  await assert.rejects(() => gitlib.compareRefs(tmp, '--upload-pack=evil', null));
+  await assert.rejects(() => gitlib.compareRefs(tmp, lg[0]!.hash, '--upload-pack=evil'));
+  await assert.rejects(() => gitlib.refFileDiff(tmp, '--upload-pack=evil', lg[0]!.hash, 'src/app.js', 'MODIFIED', null));
+  await assert.rejects(() => gitlib.refFileDiff(tmp, lg[0]!.hash, '--upload-pack=evil', 'src/app.js', 'MODIFIED', null));
+  await assert.rejects(() => gitlib.commitDetails(tmp, '--upload-pack=evil'));
+
   // ------------------------------------------------------------- branches
   run('branch', 'feature');
   const br = await gitlib.branches(tmp);

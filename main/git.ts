@@ -670,6 +670,7 @@ function parseNameStatus(out: string): CommitFile[] {
 }
 
 export async function commitDetails(root: string, hash: string): Promise<CommitDetails> {
+  assertNotOption(hash, 'Commit');
   const meta = await git(root, [
     'show', '--no-patch', `--pretty=format:%H%x00%h%x00%P%x00%an%x00%ae%x00%at%x00%B`, hash,
   ]);
@@ -696,8 +697,12 @@ export async function commitDetails(root: string, hash: string): Promise<CommitD
 // compares refA against the working tree (plain `git diff <ref>` already
 // does this — no special-casing needed beyond omitting the second arg).
 export async function compareRefs(root: string, refA: string, refB: string | null): Promise<CommitFile[]> {
+  assertNotOption(refA, 'Ref');
   const args = ['diff', '--name-status', '-z', '-M', refA];
-  if (refB && refB !== 'WORKTREE') args.push(refB);
+  if (refB && refB !== 'WORKTREE') {
+    assertNotOption(refB, 'Ref');
+    args.push(refB);
+  }
   const out = await git(root, args);
   return parseNameStatus(out);
 }
@@ -712,6 +717,8 @@ export async function refFileDiff(
   type: ChangeType,
   origPath: string | null
 ): Promise<DiffPayload> {
+  assertNotOption(refA, 'Ref');
+  if (refB !== 'WORKTREE') assertNotOption(refB, 'Ref');
   const abs = insideRepo(root, relPath);
   let origBuf: Buffer = Buffer.alloc(0);
   if (type !== 'ADDED') {
