@@ -350,7 +350,16 @@ function assertNotOption(value: string, label: string): void {
 }
 
 export async function saveFile(root: string, relPath: string, content: string): Promise<void> {
-  await fs.writeFile(insideRepo(root, relPath), content, 'utf8');
+  const abs = insideRepo(root, relPath);
+  // insideRepo only checks the literal path; a symlinked parent directory
+  // could still resolve outside root, so verify the real (symlink-resolved)
+  // parent stays under the real root before writing.
+  const realRoot = await fs.realpath(root);
+  const realParent = await fs.realpath(path.dirname(abs));
+  if (realParent !== realRoot && !realParent.startsWith(realRoot + path.sep)) {
+    throw new Error('Path escapes repository root');
+  }
+  await fs.writeFile(abs, content, 'utf8');
 }
 
 // Merge, cherry-pick, or revert concluding: git forbids pathspec-limited
