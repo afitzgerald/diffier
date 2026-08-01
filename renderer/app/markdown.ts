@@ -28,9 +28,7 @@ const markdownRenderer = (() => {
   const TABLE_SEP = /^ {0,3}\|?(\s*:?-+:?\s*\|)*\s*:?-+:?\s*\|?\s*$/;
 
   function leadingSpaces(line: string): number {
-    let n = 0;
-    while (n < line.length && line[n] === ' ') n++;
-    return n;
+    return line.length - line.trimStart().length;
   }
 
   // Resolve a relative image path against the file's directory, refusing to
