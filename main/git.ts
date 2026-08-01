@@ -895,4 +895,4 @@ export async function push(root: string): Promise<string> {
   }
 }
 
-export { git, parseRecords, insideRepo };
+export { git, insideRepo };
