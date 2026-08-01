@@ -22,26 +22,33 @@ async function populateCompareRefList(): Promise<void> {
   }
 }
 
-async function runCompare(): Promise<void> {
+async function runCompare(isRefresh?: boolean): Promise<void> {
   if (!state.repo) return;
   const refA = $<HTMLInputElement>('compare-ref-a').value.trim();
   const refB = $<HTMLInputElement>('compare-ref-b').value.trim();
   if (!refA) return;
   const gen = ++state.compare.gen;
+  const prevPath = state.readOnlyDiff?.path;
   state.compare.refA = refA;
   state.compare.refB = refB;
-  state.compare.collapsed = new Set();
+  // A fresh comparison (new refs) starts from a clean slate; an in-place
+  // refresh keeps the directories the user had collapsed.
+  if (!isRefresh) state.compare.collapsed = new Set();
   let files: CommitFile[];
   try {
     files = await window.api.gitCompareRefs(refA, refB || null);
   } catch (err) {
-    toast('Compare failed: ' + errMsg(err), true);
+    if (gen === state.compare.gen) toast('Compare failed: ' + errMsg(err), true);
     return;
   }
   if (gen !== state.compare.gen) return; // superseded by a later runCompare()
   state.compare.files = files;
   renderCompareFileTree();
-  const first = state.compare.files[0];
+  // On refresh, keep showing the previously-open file if it's still in the
+  // comparison; otherwise (and always on a fresh compare) fall back to the
+  // first file.
+  const kept = isRefresh && prevPath ? files.find((f) => f.path === prevPath) : undefined;
+  const first = kept || state.compare.files[0];
   if (first) {
     selectCompareFileRow(first.path);
     openRefDiff(refA, refB || 'WORKTREE', first, compareLabel());
@@ -52,7 +59,7 @@ async function runCompare(): Promise<void> {
 // the working tree or a compared branch) without disturbing the ref inputs.
 async function refreshCompare(): Promise<void> {
   if (state.view !== 'compare' || !state.compare.refA) return;
-  await runCompare();
+  await runCompare(true);
 }
 
 function compareLabel(): string {
@@ -141,7 +148,7 @@ function selectCompareFileByOffset(delta: number, revealEnd?: boolean): boolean 
   return true;
 }
 
-$('compare-btn').addEventListener('click', runCompare);
+$('compare-btn').addEventListener('click', () => runCompare());
 for (const id of ['compare-ref-a', 'compare-ref-b']) {
   $(id).addEventListener('keydown', (e) => {
     if ((e as KeyboardEvent).key === 'Enter') runCompare();
