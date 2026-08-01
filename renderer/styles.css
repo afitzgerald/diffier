@@ -793,6 +793,7 @@ kbd {
   outline: none;
   padding: 4px 0;
 }
+#compare-files:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 #compare-files .empty-msg { padding: 12px; color: var(--dim); text-align: center; }
 
 #log-list {
@@ -803,6 +804,7 @@ kbd {
   padding: 2px 0;
   min-height: 80px;
 }
+#log-list:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .log-row {
   display: flex;
