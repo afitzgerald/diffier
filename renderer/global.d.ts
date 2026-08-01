@@ -87,7 +87,11 @@ declare global {
 
   // AMD loader shim (renderer/index.html loads monaco-editor/min/vs/loader.js
   // as a classic script, which defines these globally).
-  function require(deps: string[], callback: (...modules: unknown[]) => void): void;
+  function require(
+    deps: string[],
+    callback: (...modules: unknown[]) => void,
+    errback?: (err: unknown) => void
+  ): void;
   namespace require {
     function config(opts: { paths: Record<string, string> }): void;
   }
