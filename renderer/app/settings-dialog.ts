@@ -134,7 +134,7 @@ $('btn-keymap').addEventListener('click', openKeymapDialog);
     const side = sel.value === 'right' ? 'right' : 'left';
     applyPanelSide(side);
     state.settings.panelSide = side;
-    window.api.setSettings({ panelSide: side });
+    window.api.setSettings({ panelSide: side }).catch(() => {});
   });
 })();
 $('keymap-done').addEventListener('click', closeKeymapDialog);
