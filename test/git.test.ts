@@ -316,13 +316,6 @@ async function main(): Promise<void> {
   // here, so commit() must fall back to a whole-index merge commit.
   await gitlib.commit(tmp, ['src/app.js'], 'merge resolved', false);
   assert.strictEqual((await gitlib.lastCommitMessage(tmp)).trim(), 'merge resolved');
-  // ...and per-hunk commits must be refused mid-merge rather than recording
-  // a commit that silently drops the MERGE_HEAD parent.
-  try {
-    run('merge', '--abort');
-  } catch {
-    /* merge already concluded */
-  }
   const mergeDet = await gitlib.commitDetails(
     tmp,
     (await gitlib.log(tmp, { limit: 1 }))[0]!.hash
@@ -343,6 +336,15 @@ async function main(): Promise<void> {
     /* conflict expected */
   }
   assert.ok((await gitlib.status(tmp)).merging, 'cherry-pick counts as merge-like state');
+  // Per-hunk commits must be refused mid-merge rather than recording a
+  // commit that silently drops the MERGE_HEAD/CHERRY_PICK_HEAD parent.
+  await assert.rejects(
+    () =>
+      gitlib.commit(tmp, [], 'attempted per-hunk commit', false, [
+        { path: 'src/app.js', content: 'PICK-RESOLVED\n' },
+      ]),
+    /Per-hunk commits are not available while a merge is in progress/
+  );
   await gitlib.markResolved(tmp, 'src/app.js', 'PICK-RESOLVED\n');
   await gitlib.commit(tmp, ['src/app.js'], 'cherry-pick resolved', false);
   assert.strictEqual((await gitlib.lastCommitMessage(tmp)).trim(), 'cherry-pick resolved');
