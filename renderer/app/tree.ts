@@ -117,12 +117,17 @@ function visibleFiles(): FileEntry[] {
 
 const TREE_ROW_H = 22;
 const TREE_OVERSCAN = 8;
+const TREE_INDENT = 14;
+
+function indentPx(depth: number): string {
+  return 6 + (depth + 1) * TREE_INDENT + 'px';
+}
 
 function buildRowEl(row: TreeRow): HTMLElement {
   const el = document.createElement('div');
   el.className = 'tree-row';
   el.dataset.key = row.key;
-  el.style.paddingLeft = 6 + (row.depth + 1) * 14 + 'px';
+  el.style.paddingLeft = indentPx(row.depth);
   el.style.height = TREE_ROW_H + 'px';
   if (row.key === state.selectedKey) el.classList.add('selected');
 

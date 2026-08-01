@@ -394,7 +394,7 @@ function buildCommitRowEl(row: TreeRow<CommitFile>, det: CommitDetails): HTMLEle
   const el = document.createElement('div');
   el.className = 'tree-row';
   el.dataset.key = row.key;
-  el.style.paddingLeft = 6 + (row.depth + 1) * 14 + 'px';
+  el.style.paddingLeft = indentPx(row.depth);
 
   const chev = document.createElement('span');
   chev.className = 'tree-chevron';
