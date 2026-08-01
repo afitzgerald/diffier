@@ -64,6 +64,10 @@ const markdownRenderer = (() => {
     // opens http(s) targets externally from data-href instead.
     a.dataset.href = href;
     a.title = title ? `${title} — ${href}` : href;
+    // No href means the browser won't put this in the tab order or expose
+    // it as a link by default — restore both explicitly.
+    a.tabIndex = 0;
+    a.setAttribute('role', 'link');
     return a;
   }
 
