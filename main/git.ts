@@ -85,6 +85,10 @@ function gitOpts(
       }
     );
     if (opts && opts.stdin != null) {
+      // A child that exits before draining stdin makes this write emit EPIPE;
+      // without a listener the stream throws and kills the main process. The
+      // execFile callback still reports the real failure.
+      child.stdin!.on('error', () => {});
       child.stdin!.end(opts.stdin);
     }
   });
