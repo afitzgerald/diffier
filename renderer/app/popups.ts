@@ -324,6 +324,14 @@ registerPopup('repo-popup', 'titlebar-repo', openRepoPopup);
 
 // ------------------------------------------------------------ context menu
 
+// Position a context menu at the click point, clamped to stay on screen.
+function positionMenuAt(menu: HTMLElement, e: MouseEvent): void {
+  menu.classList.remove('hidden');
+  menu.style.right = menu.style.bottom = 'auto';
+  menu.style.left = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8) + 'px';
+}
+
 function openFileContextMenu(e: MouseEvent, file: FileEntry): void {
   const menu = $('context-menu');
   menu.textContent = '';
@@ -361,10 +369,7 @@ function openFileContextMenu(e: MouseEvent, file: FileEntry): void {
       },
     })
   );
-  menu.classList.remove('hidden');
-  menu.style.right = menu.style.bottom = 'auto';
-  menu.style.left = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8) + 'px';
-  menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8) + 'px';
+  positionMenuAt(menu, e);
 }
 
 function openDirContextMenu(e: MouseEvent, dirPath: string): void {
@@ -386,8 +391,5 @@ function openDirContextMenu(e: MouseEvent, dirPath: string): void {
       },
     })
   );
-  menu.classList.remove('hidden');
-  menu.style.right = menu.style.bottom = 'auto';
-  menu.style.left = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8) + 'px';
-  menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8) + 'px';
+  positionMenuAt(menu, e);
 }
