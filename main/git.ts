@@ -5,6 +5,9 @@ import type { ExecFileOptionsWithBufferEncoding, ExecFileOptionsWithStringEncodi
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
+import { promisify } from 'util';
+
+const execFileP = promisify(execFile);
 import type {
   AheadBehind,
   BlameLine,
@@ -61,37 +64,31 @@ interface GitExecOpts {
 
 function gitOpts(cwd: string, args: string[], opts: GitExecOpts & { encoding: 'buffer' }): Promise<Buffer>;
 function gitOpts(cwd: string, args: string[], opts?: GitExecOpts): Promise<string>;
-function gitOpts(
+async function gitOpts(
   cwd: string,
   args: string[],
   opts: (GitExecOpts & { encoding?: 'buffer' }) | undefined
 ): Promise<string | Buffer> {
-  return new Promise((resolve, reject) => {
-    const execOpts = { cwd, maxBuffer: MAX_BUFFER, ...opts } as
-      | ExecFileOptionsWithStringEncoding
-      | ExecFileOptionsWithBufferEncoding;
-    const child = execFile(
-      'git',
-      args,
-      execOpts,
-      (err, stdout: string | Buffer, stderr: string | Buffer) => {
-        if (err) {
-          const msg =
-            (stderr && stderr.toString().trim()) || (stdout && stdout.toString().trim()) || err.message;
-          reject(new Error(msg));
-        } else {
-          resolve(stdout);
-        }
-      }
-    );
-    if (opts && opts.stdin != null) {
-      // A child that exits before draining stdin makes this write emit EPIPE;
-      // without a listener the stream throws and kills the main process. The
-      // execFile callback still reports the real failure.
-      child.stdin!.on('error', () => {});
-      child.stdin!.end(opts.stdin);
-    }
-  });
+  const execOpts = { cwd, maxBuffer: MAX_BUFFER, ...opts } as
+    | ExecFileOptionsWithStringEncoding
+    | ExecFileOptionsWithBufferEncoding;
+  const promise = execFileP('git', args, execOpts as ExecFileOptionsWithStringEncoding);
+  if (opts && opts.stdin != null) {
+    const child = (promise as unknown as { child: import('child_process').ChildProcess }).child;
+    // A child that exits before draining stdin makes this write emit EPIPE;
+    // without a listener the stream throws and kills the main process. The
+    // rejection below still reports the real failure.
+    child.stdin!.on('error', () => {});
+    child.stdin!.end(opts.stdin);
+  }
+  try {
+    return (await promise).stdout as string | Buffer;
+  } catch (err) {
+    const e = err as { stdout?: string | Buffer; stderr?: string | Buffer; message: string };
+    const msg =
+      (e.stderr && e.stderr.toString().trim()) || (e.stdout && e.stdout.toString().trim()) || e.message;
+    throw new Error(msg);
+  }
 }
 
 function git(cwd: string, args: string[]): Promise<string> {
@@ -895,4 +892,4 @@ export async function push(root: string): Promise<string> {
   }
 }
 
-export { git, parseRecords, insideRepo };
+export { git, insideRepo };
