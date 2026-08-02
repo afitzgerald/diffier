@@ -209,7 +209,7 @@ function handle<T>(channel: string, fn: (state: WindowState, ...args: any[]) => 
 handle('repo:openDialog', async (state): Promise<RepoInfo | null> => {
   const res = await dialog.showOpenDialog(state.win, {
     title: 'Open Git Repository',
-    properties: ['openDirectory'],
+    properties: ['openDirectory', 'showHiddenFiles'],
   });
   if (res.canceled || !res.filePaths.length) return null;
   const repo = await openRepoDeduped(res.filePaths[0]!, state);
@@ -636,6 +636,23 @@ function createWindow(pendingRepoDir?: string, isPrimaryWindow = false): WindowS
   // (commit messages, branch names, file contents) not to contain a link.
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+  // Electron ships no native context menu — build a minimal edit menu so
+  // right-click Copy/Cut/Paste works anywhere text can be selected/edited.
+  win.webContents.on('context-menu', (_event, params) => {
+    const items: MenuItemConstructorOptions[] = [];
+    if (params.isEditable) {
+      items.push(
+        { role: 'cut', enabled: params.editFlags.canCut },
+        { role: 'copy', enabled: params.editFlags.canCopy },
+        { role: 'paste', enabled: params.editFlags.canPaste },
+        { role: 'selectAll', enabled: params.editFlags.canSelectAll }
+      );
+    } else if (params.selectionText) {
+      items.push({ role: 'copy' });
+    }
+    if (items.length) Menu.buildFromTemplate(items).popup();
+  });
 
   buildMenu(); // Window menu's window list must include the new entry
   return state;
