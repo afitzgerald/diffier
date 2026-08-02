@@ -1183,6 +1183,7 @@ kbd {
   line-height: 1.6;
   color: var(--text);
   overflow-wrap: break-word;
+  user-select: text;
 }
 .md-none { color: var(--dim); }
 
