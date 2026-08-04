@@ -828,6 +828,7 @@ async function main(): Promise<void> {
     path.join(repo, 'README.md'),
     '# Title v2\n\nNew **intro** with [a link](https://example.com) and `code`.\n\n' +
       '- item one\n- item two\n\n```js\nconst x = 1;\n```\n\n' +
+      '```mermaid\nflowchart TD\n  A --> B\n```\n\n' +
       '<script>window.__mdPwned = true</script>\n'
   );
   await page.locator('#btn-refresh').click();
@@ -845,6 +846,8 @@ async function main(): Promise<void> {
     (await page.locator('.md-added strong').textContent()) === 'intro' &&
     (await page.locator('.md-added li').count()) === 2 &&
     (await page.locator('.md-added pre code').count()) === 1);
+  await expect('mermaid fence renders as an svg diagram', async () =>
+    (await page.locator('.md-added .md-mermaid svg').count()) === 1);
   await expect('raw HTML stays inert text', async () =>
     page.evaluate(
       () =>
@@ -931,18 +934,22 @@ async function main(): Promise<void> {
     page.evaluate(() => (window as unknown as { currentDiffEditorFontSize(): number | null }).currentDiffEditorFontSize());
   const mdFontSize = async (): Promise<string> =>
     page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--md-font-size').trim());
+  const mdMermaidZoom = async (): Promise<string> =>
+    page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--md-mermaid-zoom').trim());
   const baseDiffFontSize = await diffFontSize();
   await press('Control+Equal');
   await press('Control+Equal');
   await expect('zoom in increases diff editor font size', async () =>
     (await diffFontSize()) === baseDiffFontSize! + 2);
   await expect('zoom in increases markdown font size', async () => (await mdFontSize()) === '15px');
+  await expect('zoom in increases mermaid diagram scale', async () => (await mdMermaidZoom()) === String(15 / 13));
   await press('Control+Minus');
   await expect('zoom out decreases diff editor font size', async () =>
     (await diffFontSize()) === baseDiffFontSize! + 1);
   await press('Control+Shift+0');
   await expect('zoom reset restores diff editor font size', async () => (await diffFontSize()) === baseDiffFontSize);
   await expect('zoom reset restores markdown font size', async () => (await mdFontSize()) === '13px');
+  await expect('zoom reset restores mermaid diagram scale', async () => (await mdMermaidZoom()) === '1');
 
   // A refresh whose diff content is unchanged (fs watcher, focus, manual)
   // must leave the preview toggles alone — it used to strip the markdown
