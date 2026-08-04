@@ -1248,6 +1248,9 @@ kbd {
 .md-body img { max-width: 100%; }
 .md-img-fallback { color: var(--dim); font-style: italic; }
 
+.md-mermaid { margin: 10px 0; overflow-x: auto; zoom: var(--md-mermaid-zoom, 1); }
+.md-mermaid svg { max-width: 100%; }
+
 /* --------------------------------------------------------- titlebar extras */
 
 #titlebar-center {

@@ -22,6 +22,13 @@ function applyZoom(): void {
   diffEditor?.updateOptions(opts);
   conflictEditor?.updateOptions(opts);
   document.documentElement.style.setProperty('--md-font-size', `${ZOOM_BASE_MD_SIZE + state.zoomLevel}px`);
+  // Mermaid emits a fixed-pixel SVG (its own viewBox/max-width), unaffected
+  // by --md-font-size — scale it separately via CSS zoom (reflows layout,
+  // unlike transform: scale; fine since this only ever runs in Electron).
+  document.documentElement.style.setProperty(
+    '--md-mermaid-zoom',
+    String((ZOOM_BASE_MD_SIZE + state.zoomLevel) / ZOOM_BASE_MD_SIZE)
+  );
 }
 
 function zoomIn(): void {

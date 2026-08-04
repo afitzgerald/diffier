@@ -52,6 +52,75 @@ const markdownRenderer = (() => {
     return 'file://' + absPath.split('/').map(encodeURIComponent).join('/');
   }
 
+  // -------------------------------------------------------------- mermaid
+
+  // renderer/mermaid.js is a multi-MB bundle (see mermaid-entry.ts) — loaded
+  // as a classic <script> only on first use, not unconditionally from
+  // index.html, so a repo with no mermaid fences never pays for it.
+  let mermaidLoad: Promise<{ render(source: string): Promise<string> }> | null = null;
+  function loadMermaid(): Promise<{ render(source: string): Promise<string> }> {
+    if (!mermaidLoad) {
+      mermaidLoad = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'mermaid.js';
+        script.onload = () => (window.DiffierMermaid ? resolve(window.DiffierMermaid) : reject(new Error('mermaid.js did not set DiffierMermaid')));
+        script.onerror = () => reject(new Error('mermaid.js failed to load'));
+        document.head.appendChild(script);
+      });
+    }
+    return mermaidLoad;
+  }
+
+  // mermaid bakes colors into the SVG at render time (from the CSS vars
+  // mermaid-entry.ts reads live, see there) — it doesn't stay in sync with
+  // the app theme on its own. Remembering each block's source here lets
+  // refreshMermaidTheme() re-render every mermaid block still on screen
+  // after a theme switch. Keyed by container, so blocks dropped from the
+  // DOM (file switched, diff re-rendered) are just never looked up again.
+  const mermaidSources = new WeakMap<HTMLElement, string>();
+
+  // Shows the raw source immediately (also the permanent fallback on load/
+  // parse failure), then swaps in the rendered SVG once mermaid resolves.
+  // Parsed as HTML (not 'image/svg+xml'): mermaid's own output legitimately
+  // contains non-XML-strict markup (e.g. an unclosed <br> from a <br/> line
+  // break in a node label), which a strict XML parse rejects even though
+  // browsers render it fine. Trusting this markup is safe here — it's
+  // mermaid's sanitized (securityLevel: 'strict') render output, not raw
+  // repo text, so this doesn't reopen the no-innerHTML rule above.
+  function renderMermaidInto(container: HTMLElement, source: string): void {
+    mermaidSources.set(container, source);
+    container.textContent = '';
+    const pre = document.createElement('pre');
+    const code = document.createElement('code');
+    code.dataset.lang = 'mermaid';
+    code.textContent = source;
+    pre.appendChild(code);
+    container.appendChild(pre);
+
+    loadMermaid()
+      .then((m) => m.render(source))
+      .then((svg) => {
+        const parsed = new DOMParser().parseFromString(svg, 'text/html').querySelector('svg');
+        if (!parsed) throw new Error('mermaid did not return an <svg>');
+        container.textContent = '';
+        container.appendChild(document.importNode(parsed, true));
+      })
+      .catch(() => {
+        // Leave the raw-source fallback in place: bad diagram syntax, a
+        // missing bundle, or an offline dev build all land here.
+      });
+  }
+
+  // Called by theme.ts's applyTheme() after it updates the CSS vars —
+  // re-renders every mermaid diagram currently on screen so they pick up
+  // the new theme's colors.
+  function refreshMermaidTheme(): void {
+    document.querySelectorAll<HTMLElement>('.md-mermaid').forEach((container) => {
+      const source = mermaidSources.get(container);
+      if (source) renderMermaidInto(container, source);
+    });
+  }
+
   // ---------------------------------------------------------------- inline
 
   const ESCAPABLE = /[\\`*_{}[\]()#+\-.!~<>|"']/;
@@ -367,6 +436,13 @@ const markdownRenderer = (() => {
           buf.push(lines[i]!);
           i++;
         }
+        if (lang.toLowerCase() === 'mermaid') {
+          const div = document.createElement('div');
+          div.className = 'md-mermaid';
+          renderMermaidInto(div, buf.join('\n'));
+          out.appendChild(div);
+          return i;
+        }
         const pre = document.createElement('pre');
         const code = document.createElement('code');
         if (lang) code.dataset.lang = lang;
@@ -509,8 +585,9 @@ const markdownRenderer = (() => {
     blocks(src.replace(/\r\n?/g, '\n').split('\n'), container, base);
   }
 
-  return { renderMarkdownDiffInto, renderMarkdownInto };
+  return { renderMarkdownDiffInto, renderMarkdownInto, refreshMermaidTheme };
 })();
 
 const renderMarkdownDiffInto = markdownRenderer.renderMarkdownDiffInto;
 const renderMarkdownInto = markdownRenderer.renderMarkdownInto;
+const refreshMermaidTheme = markdownRenderer.refreshMermaidTheme;
