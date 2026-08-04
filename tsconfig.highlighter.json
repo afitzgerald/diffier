@@ -7,5 +7,5 @@
     "types": [],
     "noEmit": true
   },
-  "include": ["renderer/highlighter-entry.ts", "node_modules/monaco-editor/monaco.d.ts"]
+  "include": ["renderer/highlighter-entry.ts", "renderer/mermaid-entry.ts", "node_modules/monaco-editor/monaco.d.ts"]
 }

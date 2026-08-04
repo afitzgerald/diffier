@@ -99,6 +99,10 @@ function applyTheme(id: ThemeId): void {
   }
   const sel = $<HTMLSelectElement>('theme-select');
   if (sel && sel.value !== t.id) sel.value = t.id;
+  // mermaid bakes colors into its SVG at render time from these same CSS
+  // vars (see mermaid-entry.ts) — re-render any diagram on screen so it
+  // doesn't stay stuck in the old theme's colors.
+  refreshMermaidTheme();
 }
 
 async function setTheme(id: ThemeId): Promise<void> {

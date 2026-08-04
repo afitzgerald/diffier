@@ -17,6 +17,7 @@ main/*.js
 renderer/app/*.js
 renderer/languages.js
 renderer/highlighter.js
+renderer/mermaid.js
 test/*.js
 
 .omc

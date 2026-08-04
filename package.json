@@ -13,9 +13,10 @@
     "smoke": "yarn build && DIFFIER_SMOKE=1 electron --no-sandbox .",
     "test": "yarn build && node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js",
     "build:highlighter": "esbuild renderer/highlighter-entry.ts --bundle --format=iife --minify --log-level=warning --outfile=renderer/highlighter.js",
+    "build:mermaid": "esbuild renderer/mermaid-entry.ts --bundle --format=iife --minify --log-level=warning --outfile=renderer/mermaid.js",
     "build:preload": "esbuild main/preload.ts --bundle --platform=node --format=cjs --external:electron --log-level=warning --outfile=main/preload.js",
-    "postinstall": "yarn build:highlighter || node -e \"console.warn('shiki highlighter bundle skipped; falling back to built-in grammars')\"",
-    "dist": "yarn build && yarn build:highlighter && BUILD_NUMBER=${BUILD_NUMBER:-dev} electron-builder --mac"
+    "postinstall": "yarn build:highlighter || node -e \"console.warn('shiki highlighter bundle skipped; falling back to built-in grammars')\"; yarn build:mermaid || node -e \"console.warn('mermaid bundle skipped; mermaid fences will render as plain code blocks')\"",
+    "dist": "yarn build && yarn build:highlighter && yarn build:mermaid && BUILD_NUMBER=${BUILD_NUMBER:-dev} electron-builder --mac"
   },
   "dependencies": {
     "monaco-editor": "^0.55.1"
@@ -26,6 +27,7 @@
     "electron": "^43.0.0",
     "electron-builder": "26.15.3",
     "esbuild": "^0.28.1",
+    "mermaid": "^11.16.0",
     "playwright-core": "^1.61.1",
     "shiki": "^4.3.1",
     "typescript": "^6.0.3"

@@ -83,6 +83,11 @@ declare global {
       init(monacoNs: typeof monaco, themes: unknown[]): Promise<string[]>;
     };
     __shikiActive?: boolean;
+    // Set by renderer/mermaid.js (built from mermaid-entry.ts) once
+    // markdown.ts lazily loads it — see markdown.ts's loadMermaid().
+    DiffierMermaid?: {
+      render(source: string): Promise<string>;
+    };
   }
 
   // AMD loader shim (renderer/index.html loads monaco-editor/min/vs/loader.js
