@@ -72,7 +72,14 @@ $('btn-whitespace').addEventListener('click', async (e) => {
   btn.classList.toggle('active');
   const ignore = btn.classList.contains('active');
   diffEditor!.updateOptions({ ignoreTrimWhitespace: ignore });
-  window.api.setSettings({ ignoreWhitespace: ignore });
+});
+
+$('btn-word-wrap').addEventListener('click', async (e) => {
+  await monacoReady;
+  const btn = e.currentTarget as HTMLElement;
+  btn.classList.toggle('active');
+  const on = btn.classList.contains('active');
+  diffEditor!.updateOptions({ diffWordWrap: on ? 'on' : 'off' });
 });
 
 $('btn-collapse-unchanged').addEventListener('click', async (e) => {
@@ -81,7 +88,6 @@ $('btn-collapse-unchanged').addEventListener('click', async (e) => {
   btn.classList.toggle('active');
   const on = btn.classList.contains('active');
   diffEditor!.updateOptions({ hideUnchangedRegions: { enabled: on } });
-  window.api.setSettings({ collapseUnchanged: on });
 });
 
 $('btn-blame').addEventListener('click', toggleBlame);
@@ -213,11 +219,17 @@ $('amend-checkbox').addEventListener('change', async (e) => {
   if (state.settings.viewMode === 'unified') {
     $<HTMLSelectElement>('viewer-mode').value = 'unified';
   }
+  if (state.settings.wordWrap !== false) {
+    $('btn-word-wrap').classList.add('active');
+    $<HTMLInputElement>('default-word-wrap').checked = true;
+  }
   if (state.settings.ignoreWhitespace) {
     $('btn-whitespace').classList.add('active');
+    $<HTMLInputElement>('default-ignore-whitespace').checked = true;
   }
   if (state.settings.collapseUnchanged) {
     $('btn-collapse-unchanged').classList.add('active');
+    $<HTMLInputElement>('default-collapse-unchanged').checked = true;
   }
   km.overrides = { ...(state.settings.keymap || {}) };
   rebuildKeymap();
@@ -228,6 +240,7 @@ $('amend-checkbox').addEventListener('change', async (e) => {
   applyTheme(state.settings.theme || DEFAULT_THEME);
   diffEditor!.updateOptions({
     renderSideBySide: state.settings.viewMode !== 'unified',
+    diffWordWrap: state.settings.wordWrap === false ? 'off' : 'on',
     ignoreTrimWhitespace: !!state.settings.ignoreWhitespace,
     hideUnchangedRegions: { enabled: !!state.settings.collapseUnchanged },
   });
