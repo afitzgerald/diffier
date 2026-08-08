@@ -129,6 +129,33 @@ $('btn-keymap').addEventListener('click', openKeymapDialog);
   sel.addEventListener('change', () => setTheme(sel.value as ThemeId));
 })();
 (() => {
+  const wire = (
+    id: string,
+    settingsKey: 'wordWrap' | 'ignoreWhitespace' | 'collapseUnchanged',
+    toolbarBtnId: string,
+    applyToEditor: (on: boolean) => void
+  ): void => {
+    const box = $<HTMLInputElement>(id);
+    box.addEventListener('change', async () => {
+      const on = box.checked;
+      state.settings[settingsKey] = on;
+      window.api.setSettings({ [settingsKey]: on }).catch(() => {});
+      $(toolbarBtnId).classList.toggle('active', on);
+      await monacoReady;
+      applyToEditor(on);
+    });
+  };
+  wire('default-word-wrap', 'wordWrap', 'btn-word-wrap', (on) =>
+    diffEditor!.updateOptions({ diffWordWrap: on ? 'on' : 'off' })
+  );
+  wire('default-ignore-whitespace', 'ignoreWhitespace', 'btn-whitespace', (on) =>
+    diffEditor!.updateOptions({ ignoreTrimWhitespace: on })
+  );
+  wire('default-collapse-unchanged', 'collapseUnchanged', 'btn-collapse-unchanged', (on) =>
+    diffEditor!.updateOptions({ hideUnchangedRegions: { enabled: on } })
+  );
+})();
+(() => {
   const sel = $<HTMLSelectElement>('panel-side-select');
   sel.addEventListener('change', () => {
     const side = sel.value === 'right' ? 'right' : 'left';
