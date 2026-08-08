@@ -111,6 +111,7 @@
             <option value="unified">Unified Viewer</option>
           </select>
           <button class="icon-btn svg-icon" id="btn-whitespace" title="Ignore Leading/Trailing Whitespace" style="--icon: url('icons/whitespace.svg')"></button>
+          <button class="icon-btn svg-icon" id="btn-word-wrap" title="Word Wrap" style="--icon: url('icons/word-wrap.svg')"></button>
           <button class="icon-btn svg-icon" id="btn-collapse-unchanged" title="Collapse Unchanged Regions" style="--icon: url('icons/collapse-regions.svg')"></button>
           <button class="icon-btn svg-icon" id="btn-blame" title="Blame Annotations" style="--icon: url('icons/blame.svg')"></button>
           <button class="icon-btn svg-icon hidden" id="btn-image-view" title="Toggle Image Preview" style="--icon: url('icons/image.svg')"></button>
@@ -256,6 +257,27 @@
               <option value="left">Left</option>
               <option value="right">Right</option>
             </select>
+          </div>
+        </section>
+        <section class="settings-panel">
+          <h3 class="settings-panel-title">Diff View Defaults</h3>
+          <div class="settings-row">
+            <label class="checkbox-label">
+              <input type="checkbox" id="default-word-wrap" />
+              <span>Word wrap</span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <label class="checkbox-label">
+              <input type="checkbox" id="default-ignore-whitespace" />
+              <span>Ignore leading/trailing whitespace</span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <label class="checkbox-label">
+              <input type="checkbox" id="default-collapse-unchanged" />
+              <span>Collapse unchanged regions</span>
+            </label>
           </div>
         </section>
         <section class="settings-panel">

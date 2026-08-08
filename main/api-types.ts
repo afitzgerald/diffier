@@ -42,6 +42,7 @@ export interface Settings {
   theme?: ThemeId;
   keymap?: KeymapOverrides;
   viewMode?: 'side' | 'unified';
+  wordWrap?: boolean;
   ignoreWhitespace?: boolean;
   collapseUnchanged?: boolean;
   panelWidth?: number;
