@@ -413,7 +413,6 @@ function buildMenu(): void {
             submenu: [
               mi('about-dialog', 'About Diffier'),
               { type: 'separator' },
-              mi('keymap-settings', 'Settings…'),
               {
                 label: 'Install Command Line Launcher…',
                 click: () => installCliLauncher(),
@@ -436,7 +435,8 @@ function buildMenu(): void {
         { label: 'New Window', click: () => createWindow() },
         { type: 'separator' },
         mi('save', 'Save'),
-        ...(isMac ? [] : [{ type: 'separator' } as MenuItemConstructorOptions, mi('keymap-settings', 'Settings…')]),
+        { type: 'separator' },
+        mi('keymap-settings', 'Settings…'),
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' },
       ],
@@ -566,12 +566,18 @@ async function installCliLauncher(): Promise<void> {
 // A directory passed on the command line (e.g. via the `diffier` launcher or
 // `electron . /path/to/repo`) wins over the last-opened repository.
 function argvRepo(argv: string[], cwd: string = process.cwd()): string | null {
-  for (const arg of argv.slice(1).reverse()) {
+  const args = argv.slice(1);
+  // Unpackaged runs always start with `electron <app-path>` — that leading
+  // argument is Electron's own, not a user-supplied directory, so skip it by
+  // position. Skipping by value instead would also discard a real target
+  // that happens to equal the app path, e.g. `yarn start .` (which yarn
+  // expands to `electron . .`) when the project itself is the repo to open.
+  const start = !app.isPackaged && args.length ? 1 : 0;
+  for (let i = args.length - 1; i >= start; i--) {
+    const arg = args[i];
     if (arg.startsWith('-')) continue;
     try {
       const abs = path.resolve(cwd, arg);
-      // Skip the app-path argument from `electron .` in development.
-      if (abs === app.getAppPath()) continue;
       if (fs.statSync(abs).isDirectory()) return abs;
     } catch {
       /* not a directory */
