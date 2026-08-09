@@ -117,7 +117,6 @@ function toggleKeymapDialog(): void {
   else openKeymapDialog();
 }
 
-$('btn-keymap').addEventListener('click', openKeymapDialog);
 (() => {
   const sel = $<HTMLSelectElement>('theme-select');
   for (const t of Object.values(THEMES)) {
