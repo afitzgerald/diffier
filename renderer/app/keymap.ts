@@ -93,7 +93,6 @@ function updateShortcutHints(): void {
   $('btn-commit-push').title = 'Commit and Push' + hint('commit-and-push');
   $('btn-refresh').title = 'Refresh File Status' + hint('refresh');
   $('btn-rollback').title = 'Rollback…' + hint('rollback');
-  $('btn-keymap').title = 'Settings' + hint('keymap-settings');
   $('btn-stash').title = 'Stash / Unstash…' + hint('stash');
   $('btn-blame').title = 'Blame Annotations' + hint('annotate');
   $('btn-msg-history').title = 'Commit Message History' + hint('commit-history');
