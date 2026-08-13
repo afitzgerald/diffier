@@ -316,7 +316,7 @@ function openRepoPopup(): void {
   const sep = document.createElement('div');
   sep.className = 'popup-sep';
   list.appendChild(sep);
-  list.appendChild(popupItem('Open Repository…', { icon: '📂', onClick: () => openRepoDialog() }));
+  list.appendChild(popupItem('Open Repository…', { onClick: () => openRepoDialog() }));
   positionPopup($('repo-popup'), { anchor: $('titlebar-repo'), align: 'below' });
 }
 
@@ -335,12 +335,9 @@ function positionMenuAt(menu: HTMLElement, e: MouseEvent): void {
 function openFileContextMenu(e: MouseEvent, file: FileEntry): void {
   const menu = $('context-menu');
   menu.textContent = '';
-  menu.appendChild(
-    popupItem('Show History', { icon: '🕘', onClick: () => showFileHistory(file.path) })
-  );
+  menu.appendChild(popupItem('Show History', { onClick: () => showFileHistory(file.path) }));
   menu.appendChild(
     popupItem('Show Blame', {
-      icon: '👤',
       onClick: () => {
         if (!state.blameOn) toggleBlame();
       },
@@ -355,7 +352,6 @@ function openFileContextMenu(e: MouseEvent, file: FileEntry): void {
   menu.appendChild(sep2);
   menu.appendChild(
     popupItem('Copy Path', {
-      icon: '📋',
       onClick: () => {
         navigator.clipboard.writeText(file.path).catch(() => {});
       },
@@ -363,7 +359,6 @@ function openFileContextMenu(e: MouseEvent, file: FileEntry): void {
   );
   menu.appendChild(
     popupItem('Reveal in Finder', {
-      icon: '📁',
       onClick: () => {
         window.api.revealFile(file.path).catch(() => {});
       },
@@ -377,7 +372,6 @@ function openDirContextMenu(e: MouseEvent, dirPath: string): void {
   menu.textContent = '';
   menu.appendChild(
     popupItem('Copy Path', {
-      icon: '📋',
       onClick: () => {
         navigator.clipboard.writeText(dirPath).catch(() => {});
       },
@@ -385,7 +379,6 @@ function openDirContextMenu(e: MouseEvent, dirPath: string): void {
   );
   menu.appendChild(
     popupItem('Reveal in Finder', {
-      icon: '📁',
       onClick: () => {
         window.api.revealFile(dirPath).catch(() => {});
       },
