@@ -71,6 +71,7 @@ function positionPopup(el: HTMLElement, opts: PositionPopupOptions): void {
 interface PopupItemOptions {
   section?: boolean;
   icon?: string;
+  svgIcon?: string;
   title?: string;
   detail?: string;
   onClick?: () => void;
@@ -82,6 +83,11 @@ function popupItem(label: string, opts: PopupItemOptions = {}): HTMLElement {
   if (opts.icon) {
     const ic = document.createElement('span');
     ic.textContent = opts.icon;
+    item.appendChild(ic);
+  } else if (opts.svgIcon) {
+    const ic = document.createElement('span');
+    ic.className = 'popup-icon';
+    ic.style.setProperty('--icon', `url('icons/${opts.svgIcon}')`);
     item.appendChild(ic);
   }
   const lbl = document.createElement('span');
@@ -316,7 +322,9 @@ function openRepoPopup(): void {
   const sep = document.createElement('div');
   sep.className = 'popup-sep';
   list.appendChild(sep);
-  list.appendChild(popupItem('Open Repository…', { onClick: () => openRepoDialog() }));
+  list.appendChild(
+    popupItem('Open Repository…', { svgIcon: 'folder.svg', onClick: () => openRepoDialog() })
+  );
   positionPopup($('repo-popup'), { anchor: $('titlebar-repo'), align: 'below' });
 }
 
@@ -335,9 +343,12 @@ function positionMenuAt(menu: HTMLElement, e: MouseEvent): void {
 function openFileContextMenu(e: MouseEvent, file: FileEntry): void {
   const menu = $('context-menu');
   menu.textContent = '';
-  menu.appendChild(popupItem('Show History', { onClick: () => showFileHistory(file.path) }));
+  menu.appendChild(
+    popupItem('Show History', { svgIcon: 'history.svg', onClick: () => showFileHistory(file.path) })
+  );
   menu.appendChild(
     popupItem('Show Blame', {
+      svgIcon: 'blame.svg',
       onClick: () => {
         if (!state.blameOn) toggleBlame();
       },
@@ -346,12 +357,15 @@ function openFileContextMenu(e: MouseEvent, file: FileEntry): void {
   const sep1 = document.createElement('div');
   sep1.className = 'popup-sep';
   menu.appendChild(sep1);
-  menu.appendChild(popupItem('Rollback…', { icon: '↩', onClick: () => doRollback() }));
+  menu.appendChild(
+    popupItem('Rollback…', { svgIcon: 'rollback.svg', onClick: () => doRollback() })
+  );
   const sep2 = document.createElement('div');
   sep2.className = 'popup-sep';
   menu.appendChild(sep2);
   menu.appendChild(
     popupItem('Copy Path', {
+      svgIcon: 'copy.svg',
       onClick: () => {
         navigator.clipboard.writeText(file.path).catch(() => {});
       },
@@ -359,6 +373,7 @@ function openFileContextMenu(e: MouseEvent, file: FileEntry): void {
   );
   menu.appendChild(
     popupItem('Reveal in Finder', {
+      svgIcon: 'folder.svg',
       onClick: () => {
         window.api.revealFile(file.path).catch(() => {});
       },
@@ -372,6 +387,7 @@ function openDirContextMenu(e: MouseEvent, dirPath: string): void {
   menu.textContent = '';
   menu.appendChild(
     popupItem('Copy Path', {
+      svgIcon: 'copy.svg',
       onClick: () => {
         navigator.clipboard.writeText(dirPath).catch(() => {});
       },
@@ -379,6 +395,7 @@ function openDirContextMenu(e: MouseEvent, dirPath: string): void {
   );
   menu.appendChild(
     popupItem('Reveal in Finder', {
+      svgIcon: 'folder.svg',
       onClick: () => {
         window.api.revealFile(dirPath).catch(() => {});
       },
