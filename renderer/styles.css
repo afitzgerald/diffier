@@ -843,6 +843,7 @@ kbd {
   text-overflow: ellipsis;
 }
 .log-ref.head { border-color: var(--accent); color: var(--accent); }
+.log-ref.tag { font-style: italic; }
 
 .log-author, .log-date { font-size: 11px; flex-shrink: 0; }
 
