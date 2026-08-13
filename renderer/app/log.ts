@@ -193,7 +193,7 @@ function buildLogRow(c: LogEntryWithGraph): HTMLElement {
 
   for (const ref of parseRefs(c.refs)) {
     const chip = document.createElement('span');
-    chip.className = 'log-ref' + (ref.head ? ' head' : '');
+    chip.className = 'log-ref' + (ref.head ? ' head' : '') + (ref.tag ? ' tag' : '');
     chip.textContent = ref.name;
     chip.title = ref.name;
     row.appendChild(chip);
@@ -302,7 +302,7 @@ function renderLog(): void {
 
   const filterEl = $('log-file-filter');
   filterEl.classList.toggle('hidden', !state.log.filePath);
-  if (state.log.filePath) $('log-file-filter-label').textContent = '🕘 ' + state.log.filePath;
+  if (state.log.filePath) $('log-file-filter-label').textContent = state.log.filePath;
 
   if (!state.log.entries.length) {
     const div = document.createElement('div');
@@ -318,6 +318,7 @@ function renderLog(): void {
 interface ParsedRef {
   name: string;
   head: boolean;
+  tag: boolean;
 }
 
 function parseRefs(refs: string): ParsedRef[] {
@@ -325,10 +326,10 @@ function parseRefs(refs: string): ParsedRef[] {
   return refs
     .split(', ')
     .map((r): ParsedRef => {
-      if (r.startsWith('HEAD -> ')) return { name: r.slice(8), head: true };
-      if (r === 'HEAD') return { name: 'HEAD', head: true };
-      if (r.startsWith('tag: ')) return { name: '🏷 ' + r.slice(5), head: false };
-      return { name: r, head: false };
+      if (r.startsWith('HEAD -> ')) return { name: r.slice(8), head: true, tag: false };
+      if (r === 'HEAD') return { name: 'HEAD', head: true, tag: false };
+      if (r.startsWith('tag: ')) return { name: r.slice(5), head: false, tag: true };
+      return { name: r, head: false, tag: false };
     })
     .slice(0, 3);
 }

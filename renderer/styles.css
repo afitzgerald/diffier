@@ -299,6 +299,17 @@ button.primary:hover { background: var(--btn-primary-hover); }
 .icon-btn.svg-icon.rotate-left::before { transform: rotate(-90deg); }
 .icon-btn.svg-icon.rotate-right::before { transform: rotate(90deg); }
 
+/* Same masked-svg technique as .icon-btn.svg-icon, sized for popup-item rows. */
+.popup-icon {
+  display: block;
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  background-color: currentColor;
+  -webkit-mask: var(--icon) no-repeat center / contain;
+  mask: var(--icon) no-repeat center / contain;
+}
+
 /* ------------------------------------------------------------ diff pane */
 
 #diff-toolbar {
@@ -843,6 +854,7 @@ kbd {
   text-overflow: ellipsis;
 }
 .log-ref.head { border-color: var(--accent); color: var(--accent); }
+.log-ref.tag { font-style: italic; }
 
 .log-author, .log-date { font-size: 11px; flex-shrink: 0; }
 
