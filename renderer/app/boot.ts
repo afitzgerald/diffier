@@ -63,32 +63,15 @@ $('viewer-mode').addEventListener('change', async (e) => {
   await monacoReady;
   const side = (e.target as HTMLSelectElement).value === 'side';
   diffEditor!.updateOptions({ renderSideBySide: side });
-  window.api.setSettings({ viewMode: (e.target as HTMLSelectElement).value as 'side' | 'unified' });
+  window.api.setSettings({ viewMode: (e.target as HTMLSelectElement).value as 'side' | 'unified' }).catch(() => {});
 });
 
-$('btn-whitespace').addEventListener('click', async (e) => {
-  await monacoReady;
-  const btn = e.currentTarget as HTMLElement;
-  btn.classList.toggle('active');
-  const ignore = btn.classList.contains('active');
-  diffEditor!.updateOptions({ ignoreTrimWhitespace: ignore });
-});
-
-$('btn-word-wrap').addEventListener('click', async (e) => {
-  await monacoReady;
-  const btn = e.currentTarget as HTMLElement;
-  btn.classList.toggle('active');
-  const on = btn.classList.contains('active');
-  diffEditor!.updateOptions({ diffWordWrap: on ? 'on' : 'off' });
-});
-
-$('btn-collapse-unchanged').addEventListener('click', async (e) => {
-  await monacoReady;
-  const btn = e.currentTarget as HTMLElement;
-  btn.classList.toggle('active');
-  const on = btn.classList.contains('active');
-  diffEditor!.updateOptions({ hideUnchangedRegions: { enabled: on } });
-});
+for (const t of DIFF_TOGGLES) {
+  $(t.buttonId).addEventListener('click', async () => {
+    await monacoReady;
+    setDiffToggle(t, !$(t.buttonId).classList.contains('active'));
+  });
+}
 
 $('btn-blame').addEventListener('click', toggleBlame);
 
@@ -199,7 +182,7 @@ $('amend-checkbox').addEventListener('change', async (e) => {
     if (dragging) {
       dragging = false;
       document.body.style.cursor = '';
-      window.api.setSettings({ panelWidth: parseInt(panel.style.width, 10) || 360 });
+      window.api.setSettings({ panelWidth: parseInt(panel.style.width, 10) || 360 }).catch(() => {});
     }
   });
 })();
@@ -219,17 +202,10 @@ $('amend-checkbox').addEventListener('change', async (e) => {
   if (state.settings.viewMode === 'unified') {
     $<HTMLSelectElement>('viewer-mode').value = 'unified';
   }
-  if (state.settings.wordWrap !== false) {
-    $('btn-word-wrap').classList.add('active');
-    $<HTMLInputElement>('default-word-wrap').checked = true;
-  }
-  if (state.settings.ignoreWhitespace) {
-    $('btn-whitespace').classList.add('active');
-    $<HTMLInputElement>('default-ignore-whitespace').checked = true;
-  }
-  if (state.settings.collapseUnchanged) {
-    $('btn-collapse-unchanged').classList.add('active');
-    $<HTMLInputElement>('default-collapse-unchanged').checked = true;
+  for (const t of DIFF_TOGGLES) {
+    const on = diffToggleOn(t);
+    $(t.buttonId).classList.toggle('active', on);
+    $<HTMLInputElement>(t.checkboxId).checked = on;
   }
   km.overrides = { ...(state.settings.keymap || {}) };
   rebuildKeymap();
@@ -238,12 +214,8 @@ $('amend-checkbox').addEventListener('change', async (e) => {
   // Monaco may have initialized before settings arrived — reapply so the
   // editor theme matches the persisted choice.
   applyTheme(state.settings.theme || DEFAULT_THEME);
-  diffEditor!.updateOptions({
-    renderSideBySide: state.settings.viewMode !== 'unified',
-    diffWordWrap: state.settings.wordWrap === false ? 'off' : 'on',
-    ignoreTrimWhitespace: !!state.settings.ignoreWhitespace,
-    hideUnchangedRegions: { enabled: !!state.settings.collapseUnchanged },
-  });
+  diffEditor!.updateOptions({ renderSideBySide: state.settings.viewMode !== 'unified' });
+  for (const t of DIFF_TOGGLES) t.apply(diffToggleOn(t));
   try {
     const repo = await window.api.openLastRepo();
     if (repo) await setRepo(repo);

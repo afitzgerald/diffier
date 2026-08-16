@@ -83,11 +83,17 @@ interface PresentDiffOptions {
 // images, a placeholder for binary/oversized files, or fresh Monaco models.
 // `trackPath` ties the models to a worktree path for hunk staging;
 // `revealEnd` positions on the last change instead of the first.
-function presentDiff(diff: DiffPayload, file: DiffableFile, { readOnly, revealEnd, trackPath }: PresentDiffOptions): void {
+// Prologue shared by presentDiff and the conflict path in openDiff: clear out
+// whatever the previous file left behind before installing new content.
+function resetDiffModels(): void {
   disposeModels();
   resetPreviewToggles();
-  showPane('diff');
   setDirty(false);
+}
+
+function presentDiff(diff: DiffPayload, file: DiffableFile, { readOnly, revealEnd, trackPath }: PresentDiffOptions): void {
+  resetDiffModels();
+  showPane('diff');
 
   if (diff.binary && diff.image) {
     showImageDiff({
@@ -163,9 +169,7 @@ async function openDiff(file: FileEntry, revealEnd?: boolean): Promise<void> {
   setDiffHeader(file);
 
   if (file.type === 'CONFLICT') {
-    setDirty(false);
-    disposeModels();
-    resetPreviewToggles();
+    resetDiffModels();
     updateDiffCount();
     return openConflict(file);
   }

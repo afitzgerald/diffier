@@ -127,32 +127,63 @@ function toggleKeymapDialog(): void {
   }
   sel.addEventListener('change', () => setTheme(sel.value as ThemeId));
 })();
+// The three diff-view options that exist both as a toolbar toggle button and
+// a "default" checkbox in Settings — one config table so flipping either one
+// updates the editor, the other control, and persisted settings together.
+// Used here (checkbox) and in boot.ts (toolbar button + startup restore).
+interface DiffToggle {
+  key: 'wordWrap' | 'ignoreWhitespace' | 'collapseUnchanged';
+  checkboxId: string;
+  buttonId: string;
+  defaultOn: boolean;
+  apply: (on: boolean) => void;
+}
+
+const DIFF_TOGGLES: DiffToggle[] = [
+  {
+    key: 'wordWrap',
+    checkboxId: 'default-word-wrap',
+    buttonId: 'btn-word-wrap',
+    defaultOn: true,
+    apply: (on) => diffEditor!.updateOptions({ diffWordWrap: on ? 'on' : 'off' }),
+  },
+  {
+    key: 'ignoreWhitespace',
+    checkboxId: 'default-ignore-whitespace',
+    buttonId: 'btn-whitespace',
+    defaultOn: false,
+    apply: (on) => diffEditor!.updateOptions({ ignoreTrimWhitespace: on }),
+  },
+  {
+    key: 'collapseUnchanged',
+    checkboxId: 'default-collapse-unchanged',
+    buttonId: 'btn-collapse-unchanged',
+    defaultOn: false,
+    apply: (on) => diffEditor!.updateOptions({ hideUnchangedRegions: { enabled: on } }),
+  },
+];
+
+function diffToggleOn(t: DiffToggle): boolean {
+  const v = state.settings[t.key];
+  return v === undefined ? t.defaultOn : !!v;
+}
+
+function setDiffToggle(t: DiffToggle, on: boolean): void {
+  state.settings[t.key] = on;
+  window.api.setSettings({ [t.key]: on }).catch(() => {});
+  $(t.buttonId).classList.toggle('active', on);
+  $<HTMLInputElement>(t.checkboxId).checked = on;
+  t.apply(on);
+}
+
 (() => {
-  const wire = (
-    id: string,
-    settingsKey: 'wordWrap' | 'ignoreWhitespace' | 'collapseUnchanged',
-    toolbarBtnId: string,
-    applyToEditor: (on: boolean) => void
-  ): void => {
-    const box = $<HTMLInputElement>(id);
-    box.addEventListener('change', async () => {
-      const on = box.checked;
-      state.settings[settingsKey] = on;
-      window.api.setSettings({ [settingsKey]: on }).catch(() => {});
-      $(toolbarBtnId).classList.toggle('active', on);
+  for (const t of DIFF_TOGGLES) {
+    $<HTMLInputElement>(t.checkboxId).addEventListener('change', async () => {
+      const on = $<HTMLInputElement>(t.checkboxId).checked;
       await monacoReady;
-      applyToEditor(on);
+      setDiffToggle(t, on);
     });
-  };
-  wire('default-word-wrap', 'wordWrap', 'btn-word-wrap', (on) =>
-    diffEditor!.updateOptions({ diffWordWrap: on ? 'on' : 'off' })
-  );
-  wire('default-ignore-whitespace', 'ignoreWhitespace', 'btn-whitespace', (on) =>
-    diffEditor!.updateOptions({ ignoreTrimWhitespace: on })
-  );
-  wire('default-collapse-unchanged', 'collapseUnchanged', 'btn-collapse-unchanged', (on) =>
-    diffEditor!.updateOptions({ hideUnchangedRegions: { enabled: on } })
-  );
+  }
 })();
 (() => {
   const sel = $<HTMLSelectElement>('panel-side-select');

@@ -89,22 +89,8 @@ function buildCompareRowEl(row: TreeRow<CommitFile>): HTMLElement {
   el.dataset.key = row.key;
   el.style.paddingLeft = indentPx(row.depth);
 
-  const chev = document.createElement('span');
-  chev.className = 'tree-chevron';
-
   if (row.kind === 'dir') {
-    chev.textContent = state.compare.collapsed.has(row.key) ? '▸' : '▾';
-    el.appendChild(chev);
-
-    const name = document.createElement('span');
-    name.className = 'dir-name file-name';
-    name.textContent = row.node.name;
-    el.appendChild(name);
-
-    const count = document.createElement('span');
-    count.className = 'dir-count';
-    count.textContent = String(countFiles(row.node));
-    el.appendChild(count);
+    appendDirLabel(el, row.node, row.key, state.compare.collapsed);
 
     el.addEventListener('click', () => {
       if (state.compare.collapsed.has(row.key)) state.compare.collapsed.delete(row.key);
@@ -112,6 +98,8 @@ function buildCompareRowEl(row: TreeRow<CommitFile>): HTMLElement {
       renderCompareFileTree();
     });
   } else {
+    const chev = document.createElement('span');
+    chev.className = 'tree-chevron';
     el.appendChild(chev);
     el.dataset.path = row.file.path;
     if (state.readOnlyDiff && row.file.path === state.readOnlyDiff.path) el.classList.add('selected');
@@ -127,24 +115,16 @@ function buildCompareRowEl(row: TreeRow<CommitFile>): HTMLElement {
 }
 
 function selectCompareFileRow(path: string): void {
-  for (const el of $('compare-files').querySelectorAll('.tree-row')) {
-    const match = (el as HTMLElement).dataset.path === path;
-    el.classList.toggle('selected', match);
-    if (match) (el as HTMLElement).scrollIntoView({ block: 'nearest' });
-  }
+  highlightRowByPath('compare-files', path);
 }
 
 // F7-style next/prev file within the Compare tab (mirrors selectCommitFileByOffset).
 function selectCompareFileByOffset(delta: number, revealEnd?: boolean): boolean {
   const rows = state.compare.rows.filter((r): r is TreeFileRow<CommitFile> => r.kind === 'file');
-  if (!rows.length) return false;
-  let idx = rows.findIndex((r) => state.readOnlyDiff && r.file.path === state.readOnlyDiff.path);
-  if (idx === -1) idx = delta > 0 ? -1 : 0;
-  const next = idx + delta;
-  if (next < 0 || next >= rows.length) return false;
-  const f = rows[next]!.file;
-  selectCompareFileRow(f.path);
-  openRefDiff(state.compare.refA, state.compare.refB || 'WORKTREE', f, compareLabel(), revealEnd);
+  const row = findRowByOffset(rows, state.readOnlyDiff?.path, delta);
+  if (!row) return false;
+  selectCompareFileRow(row.file.path);
+  openRefDiff(state.compare.refA, state.compare.refB || 'WORKTREE', row.file, compareLabel(), revealEnd);
   return true;
 }
 
