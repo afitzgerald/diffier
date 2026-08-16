@@ -108,6 +108,17 @@ function appendFileLabel(
   return name;
 }
 
+// Select the `.tree-row` matching `path` inside `containerId` and scroll it
+// into view — shared by the Log tab's commit file tree and the Compare tab's
+// file tree (the worktree tree uses `selectRow`/windowed rendering instead).
+function highlightRowByPath(containerId: string, path: string): void {
+  for (const el of $(containerId).querySelectorAll('.tree-row')) {
+    const match = (el as HTMLElement).dataset.path === path;
+    el.classList.toggle('selected', match);
+    if (match) (el as HTMLElement).scrollIntoView({ block: 'nearest' });
+  }
+}
+
 // Files surviving the filter box (checkbox state always tracks all files).
 function visibleFiles(): FileEntry[] {
   if (!state.filter) return state.files;
@@ -121,6 +132,38 @@ const TREE_INDENT = 14;
 
 function indentPx(depth: number): string {
   return 6 + (depth + 1) * TREE_INDENT + 'px';
+}
+
+// Shared chevron + name + count for a directory row — used by the worktree
+// tree, the Log tab's commit file tree, and the Compare tab's file tree.
+function appendDirLabel(el: HTMLElement, node: TreeNode<any>, key: string, collapsed: Set<string>): void {
+  const chev = document.createElement('span');
+  chev.className = 'tree-chevron';
+  chev.textContent = collapsed.has(key) ? '▸' : '▾';
+  el.appendChild(chev);
+
+  const name = document.createElement('span');
+  name.className = 'dir-name file-name';
+  name.textContent = node.name;
+  el.appendChild(name);
+
+  const count = document.createElement('span');
+  count.className = 'dir-count';
+  count.textContent = String(countFiles(node));
+  el.appendChild(count);
+}
+
+// Check/uncheck every file under a directory node for commit — shared by the
+// tree's own checkbox click and the keyboard Space handler in actions.ts so
+// the two can't drift on what "toggle" means for a partially-checked dir.
+function toggleDirChecked(node: TreeNode<FileEntry>): void {
+  const all = collectFiles(node);
+  const target = all.some((f) => !state.checked.has(f.path));
+  for (const f of all) {
+    if (target) state.checked.add(f.path);
+    else state.checked.delete(f.path);
+  }
+  renderTree();
 }
 
 function buildRowEl(row: TreeRow): HTMLElement {
@@ -145,12 +188,7 @@ function buildRowEl(row: TreeRow): HTMLElement {
     cb.indeterminate = checkedCount > 0 && checkedCount < all.length;
     cb.addEventListener('click', (e) => {
       e.stopPropagation();
-      const target = checkedCount !== all.length;
-      for (const f of all) {
-        if (target) state.checked.add(f.path);
-        else state.checked.delete(f.path);
-      }
-      renderTree();
+      toggleDirChecked(row.node);
     });
     el.appendChild(cb);
 
@@ -343,14 +381,27 @@ function moveSelection(delta: number): void {
   selectRow(state.rows[next]!.key);
 }
 
-function selectFileByOffset(delta: number, revealEnd?: boolean): boolean {
-  const rows = fileRows();
-  if (!rows.length) return false;
-  let idx = rows.findIndex((r) => state.current && r.file.path === state.current.path);
+// Step to the next/previous file row relative to `currentPath` in a filtered
+// file-row list, by `delta` (±1). Shared by the worktree tree, the Log tab's
+// commit file list, and the Compare tab's file list — each just supplies its
+// own row list and "current path", then acts on the returned row.
+function findRowByOffset<T extends { path: string }>(
+  rows: TreeFileRow<T>[],
+  currentPath: string | null | undefined,
+  delta: number
+): TreeFileRow<T> | null {
+  if (!rows.length) return null;
+  let idx = currentPath == null ? -1 : rows.findIndex((r) => r.file.path === currentPath);
   if (idx === -1) idx = delta > 0 ? -1 : 0;
   const next = idx + delta;
-  if (next < 0 || next >= rows.length) return false;
-  selectRow(rows[next]!.key, revealEnd);
+  if (next < 0 || next >= rows.length) return null;
+  return rows[next]!;
+}
+
+function selectFileByOffset(delta: number, revealEnd?: boolean): boolean {
+  const row = findRowByOffset(fileRows(), state.current?.path, delta);
+  if (!row) return false;
+  selectRow(row.key, revealEnd);
   return true;
 }
 

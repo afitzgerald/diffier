@@ -110,6 +110,12 @@ function popupItem(label: string, opts: PopupItemOptions = {}): HTMLElement {
   return item;
 }
 
+function popupSeparator(): HTMLElement {
+  const sep = document.createElement('div');
+  sep.className = 'popup-sep';
+  return sep;
+}
+
 // ------------------------------------------------------------ branch popup
 
 interface BranchListItem {
@@ -319,9 +325,7 @@ function openRepoPopup(): void {
     });
     list.appendChild(el);
   }
-  const sep = document.createElement('div');
-  sep.className = 'popup-sep';
-  list.appendChild(sep);
+  list.appendChild(popupSeparator());
   list.appendChild(
     popupItem('Open Repository…', { svgIcon: 'folder.svg', onClick: () => openRepoDialog() })
   );
@@ -354,15 +358,11 @@ function openFileContextMenu(e: MouseEvent, file: FileEntry): void {
       },
     })
   );
-  const sep1 = document.createElement('div');
-  sep1.className = 'popup-sep';
-  menu.appendChild(sep1);
+  menu.appendChild(popupSeparator());
   menu.appendChild(
     popupItem('Rollback…', { svgIcon: 'rollback.svg', onClick: () => doRollback() })
   );
-  const sep2 = document.createElement('div');
-  sep2.className = 'popup-sep';
-  menu.appendChild(sep2);
+  menu.appendChild(popupSeparator());
   menu.appendChild(
     popupItem('Copy Path', {
       svgIcon: 'copy.svg',

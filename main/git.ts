@@ -134,7 +134,7 @@ export async function currentBranch(root: string): Promise<string> {
 }
 
 // Map porcelain XY codes to an IntelliJ-style change type.
-export function changeType(x: string, y: string): ChangeType {
+function changeType(x: string, y: string): ChangeType {
   if (x === '?' || y === '?') return 'UNVERSIONED';
   if (x === 'U' || y === 'U' || (x === 'A' && y === 'A') || (x === 'D' && y === 'D')) return 'CONFLICT';
   if (x === 'R' || y === 'R') return 'MOVED';
@@ -145,7 +145,7 @@ export function changeType(x: string, y: string): ChangeType {
 
 // Parse `git status --porcelain=v1 -z` output. Rename entries are followed
 // by the original path as a separate NUL-terminated token.
-export function parseStatusZ(out: string): FileEntry[] {
+function parseStatusZ(out: string): FileEntry[] {
   const tokens = out.split('\0').filter((t) => t.length > 0);
   const files: FileEntry[] = [];
   for (let i = 0; i < tokens.length; i++) {
