@@ -1296,6 +1296,9 @@ kbd {
 #status-branch { cursor: pointer; padding: 1px 6px; border-radius: 3px; }
 #status-branch:hover { background: var(--hover); }
 #status-track:empty { display: none; }
+#status-diffstat:empty { display: none; }
+#status-diffstat .diffstat-added { color: var(--st-added); }
+#status-diffstat .diffstat-removed { color: var(--st-conflict); }
 
 /* --------------------------------------------------------- commit options */
 
