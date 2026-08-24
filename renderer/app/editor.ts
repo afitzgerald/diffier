@@ -122,8 +122,19 @@ function updateDiffCount(): void {
     el.textContent = '';
     return;
   }
-  const n = getLineChanges().length;
-  el.textContent = n === 0 ? 'Contents are identical' : `${n} difference${n === 1 ? '' : 's'}`;
+  const changes = getLineChanges();
+  const n = changes.length;
+  if (n === 0) {
+    el.textContent = 'Contents are identical';
+    return;
+  }
+  let added = 0;
+  let removed = 0;
+  for (const c of changes) {
+    if (c.modifiedEndLineNumber !== 0) added += c.modifiedEndLineNumber - c.modifiedStartLineNumber + 1;
+    if (c.originalEndLineNumber !== 0) removed += c.originalEndLineNumber - c.originalStartLineNumber + 1;
+  }
+  el.textContent = `${n} difference${n === 1 ? '' : 's'} (+${added} −${removed})`;
 }
 
 // ---------------------------------------------------------------- language
