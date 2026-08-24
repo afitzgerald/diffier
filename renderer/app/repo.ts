@@ -6,6 +6,19 @@
 
 // ------------------------------------------------------------------ status
 
+function renderDiffStat(stat: DiffStat | null): void {
+  const el = $('status-diffstat');
+  el.replaceChildren();
+  if (!stat || (!stat.added && !stat.removed)) return;
+  const added = document.createElement('span');
+  added.className = 'diffstat-added';
+  added.textContent = `+${stat.added}`;
+  const removed = document.createElement('span');
+  removed.className = 'diffstat-removed';
+  removed.textContent = `−${stat.removed}`;
+  el.append(added, ' ', removed);
+}
+
 async function refreshStatus(keepDiff?: boolean): Promise<void> {
   if (!state.repo) return;
   const root = state.repo.root;
@@ -22,6 +35,7 @@ async function refreshStatus(keepDiff?: boolean): Promise<void> {
   const wasMerging = state.merging;
   state.merging = !!st.merging;
   $('status-branch').textContent = st.branch;
+  renderDiffStat(st.diffStat);
   $('status-track').textContent = st.track
     ? [st.track.ahead ? `↑${st.track.ahead}` : '', st.track.behind ? `↓${st.track.behind}` : '']
         .filter(Boolean)
