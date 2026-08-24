@@ -18,6 +18,7 @@ import type {
   CommitFile,
   ConflictInfoResult,
   DiffPayload,
+  DiffStat,
   FileDiffResult,
   FileEntry,
   ImageDataResult,
@@ -41,6 +42,7 @@ export type {
   CommitFile,
   ConflictInfoResult,
   DiffPayload,
+  DiffStat,
   FileDiffResult,
   FileEntry,
   ImageDataResult,
@@ -174,6 +176,23 @@ function parseRecords(out: string): string[][] {
     .map((rec) => rec.split('\0'));
 }
 
+// Combined staged+unstaged line totals vs HEAD (matches the worktree diff
+// shown per file). Untracked files aren't counted — git diff --numstat only
+// covers tracked paths, and there's no HEAD to diff an untracked file against.
+async function diffStat(root: string, hasHeadRef: boolean): Promise<DiffStat | null> {
+  if (!hasHeadRef) return null;
+  const out = await git(root, ['diff', 'HEAD', '--numstat', '-z']);
+  let added = 0;
+  let removed = 0;
+  for (const line of out.split('\0')) {
+    const m = /^(\d+|-)\t(\d+|-)\t/.exec(line);
+    if (!m) continue;
+    if (m[1] !== '-') added += Number(m[1]);
+    if (m[2] !== '-') removed += Number(m[2]);
+  }
+  return { added, removed };
+}
+
 export async function status(root: string): Promise<StatusResult> {
   const [out, branch, head, track, merging] = await Promise.all([
     // --no-optional-locks: status may not take index.lock (it opportunistically
@@ -191,6 +210,7 @@ export async function status(root: string): Promise<StatusResult> {
     files: parseStatusZ(out),
     track,
     merging,
+    diffStat: await diffStat(root, head),
   };
 }
 

@@ -28,12 +28,18 @@ export interface AheadBehind {
   behind: number;
 }
 
+export interface DiffStat {
+  added: number;
+  removed: number;
+}
+
 export interface StatusResult {
   branch: string;
   hasHead: boolean;
   files: FileEntry[];
   track: AheadBehind | null;
   merging: boolean;
+  diffStat: DiffStat | null;
 }
 
 // Shape shared by fileDiff (HEAD vs worktree) and commitFileDiff (parent vs
