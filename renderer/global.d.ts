@@ -35,6 +35,7 @@ import type {
   CommitFile as CommitFile_,
   ConflictInfoResult as ConflictInfoResult_,
   DiffPayload as DiffPayload_,
+  DiffStat as DiffStat_,
   FileDiffResult as FileDiffResult_,
   FileEntry as FileEntry_,
   ImageDataResult as ImageDataResult_,
@@ -114,6 +115,7 @@ declare global {
   type ConfirmOptions = ConfirmOptions_;
   type ConflictInfoResult = ConflictInfoResult_;
   type DiffPayload = DiffPayload_;
+  type DiffStat = DiffStat_;
   type FileDiffResult = FileDiffResult_;
   type FileEntry = FileEntry_;
   type ImageDataResult = ImageDataResult_;
