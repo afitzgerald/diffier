@@ -22,14 +22,14 @@
     "monaco-editor": "^0.55.1"
   },
   "devDependencies": {
-    "@shikijs/monaco": "^4.3.1",
-    "@types/node": "^26.1.0",
-    "electron": "^43.0.0",
+    "@shikijs/monaco": "^4.4.3",
+    "@types/node": "^26.4.0",
+    "electron": "^44.1.0",
     "electron-builder": "26.15.3",
-    "esbuild": "^0.28.1",
-    "mermaid": "^11.16.0",
-    "playwright-core": "^1.61.1",
-    "shiki": "^4.3.1",
+    "esbuild": "^0.28.2",
+    "mermaid": "^11.17.2",
+    "playwright-core": "^1.62.1",
+    "shiki": "^4.4.3",
     "typescript": "^6.0.3"
   },
   "build": {
