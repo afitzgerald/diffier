@@ -19,7 +19,7 @@
     "dist": "yarn build && yarn build:highlighter && yarn build:mermaid && BUILD_NUMBER=${BUILD_NUMBER:-dev} electron-builder --mac"
   },
   "dependencies": {
-    "monaco-editor": "^0.55.1"
+    "monaco-editor": "^0.56.0"
   },
   "devDependencies": {
     "@shikijs/monaco": "^4.4.3",
