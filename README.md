@@ -161,6 +161,30 @@ yarn dist           # compiles, rebuilds the shiki bundle, then produces
                     # dist/Diffier-<version>.dmg and .zip
 ```
 
+Signing and notarizing needs a Developer ID Application certificate in the
+keychain plus `NOTARIZE=1`; without it `yarn dist` still produces a working
+(unsigned) app for local use. See `build/afterSign.js`.
+
+## Releasing
+
+Three GitHub Actions workflows, same shape end to end:
+
+1. **Test** (`.github/workflows/test.yml`) — typecheck, unit/integration
+   tests, and an unsigned build check on every PR and push to `main`.
+2. **Deploy** (`.github/workflows/deploy.yml`) — runs after Test succeeds on
+   `main`; computes the next `vX.Y.Z` tag from conventional-commit subjects
+   since the last tag (`scripts/next_version.sh`: `type!:`/`BREAKING
+   CHANGE` → major, everything else → patch), pushes it, and dispatches
+   Release.
+3. **Release** (`.github/workflows/release.yml`) — builds, code-signs,
+   notarizes, and publishes the signed DMG/zip to a GitHub Release for that
+   tag.
+
+Release needs these repo secrets: `CSC_LINK` / `CSC_KEY_PASSWORD` (a
+base64-encoded Developer ID Application `.p12` and its password, for
+code-signing) and `APPLE_ID` / `APPLE_APP_PASSWORD` / `APPLE_TEAM_ID` (an
+Apple ID, an app-specific password, and the team ID, for notarization).
+
 ## TypeScript
 
 The whole app is TypeScript, compiled **in place**: `tsc` emits each
