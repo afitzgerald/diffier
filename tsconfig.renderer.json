@@ -2,7 +2,7 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": [],
     "declaration": false,
