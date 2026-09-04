@@ -15,5 +15,18 @@ module.exports = async function afterSign(context) {
     context.appOutDir,
     `${context.packager.appInfo.productFilename}.app`
   );
+
+  // CI (see .github/workflows/release.yml) has no keychain profile to use,
+  // so it passes Apple credentials directly instead.
+  const { APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID } = process.env;
+  if (APPLE_ID && APPLE_APP_PASSWORD && APPLE_TEAM_ID) {
+    await notarize({
+      appPath,
+      appleId: APPLE_ID,
+      appleIdPassword: APPLE_APP_PASSWORD,
+      teamId: APPLE_TEAM_ID,
+    });
+    return;
+  }
   await notarize({ appPath, keychainProfile: NOTARY_PROFILE });
 };
