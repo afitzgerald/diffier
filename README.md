@@ -72,6 +72,8 @@ working-tree changes in any Git repository.
   message, metadata, and changed files; click a file for a read-only diff
   of that revision. Right-click a changed file for **Show History** — the
   log filtered to that file (following renames).
+- **Compare tab** — diff any two refs (branches, tags, or raw commit
+  hashes) against each other, independent of the working tree.
 - **Merge conflict resolution** — conflicted files open in a resolve
   editor: ours/theirs regions highlighted and labeled with the real branch
   names, per-conflict **Accept Ours / Accept Theirs / Accept Both**
@@ -86,7 +88,8 @@ working-tree changes in any Git repository.
   a preview toggle.
 - **Markdown preview** — markdown files get a toolbar toggle that swaps
   the text diff for rendered Old | New panes (scroll-synced); links open
-  in the system browser, and raw HTML in the file renders as literal text.
+  in the system browser, raw HTML in the file renders as literal text, and
+  mermaid fences render as diagrams.
 - **Rollback** — IntelliJ semantics: tracked files revert to HEAD, renames
   are undone, unversioned files are deleted (with confirmation).
 - **Multi-repo** — the titlebar is a repo switcher with recent
@@ -132,6 +135,8 @@ tooltips. Tree navigation (`↑` `↓` `←` `→` `Space` `⏎`) is fixed.
 | `⌘0` | Toggle the commit tool window |
 | `⌘O` | Open a repository |
 | `⌘R` | Refresh file status |
+| `⌘=` / `⌘-` | Zoom in / out (diff & markdown font size) |
+| `⌘⇧0` | Reset zoom |
 | `⌘,` | Settings (theme + keymap) |
 
 Fetch, Stash, and Blame Annotations are unbound by default — bind them in
@@ -221,8 +226,10 @@ renderer/
     theme.ts           Theme application and shiki theme mapping
     keymap.ts          Keybinding state, normalization, event matching
     editor.ts          Monaco bootstrap, diff editor, language detection
+    zoom.ts            Session-only font-size zoom for editors/markdown
     staging.ts         Partial (per-hunk) staging and commit selection
     tree.ts            Changes tree: model, windowed rendering, filter
+    markdown.ts        Hand-written GFM renderer for the markdown preview
     diff-view.ts       Diff pane: worktree/commit diffs, image preview
     conflict.ts        Merge conflict resolution editor
     blame.ts           Inline git blame annotations
@@ -232,8 +239,10 @@ renderer/
     popups.ts          Popup infra, branch popup, msg history, repo switcher
     stash.ts           Stash dialog
     log.ts             Log tab: lane graph, commit details, file history
+    compare.ts         Compare tab: diff two arbitrary refs
     actions.ts         Action registry and global keyboard handling
     settings-dialog.ts Settings dialog: theme picker and keymap editor
+    about-dialog.ts    About dialog: app identity, version, license
     boot.ts            Menu IPC, toolbar wiring, splitter, startup
   languages.ts Language metadata: detection, aliases, Monarch fallbacks
   highlighter-entry.ts
