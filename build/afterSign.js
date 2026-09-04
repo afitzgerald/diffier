@@ -1,28 +1,19 @@
-const { execFileSync } = require('child_process');
 const path = require('path');
 const { notarize } = require('@electron/notarize');
 
+// One-time setup: xcrun notarytool store-credentials diffier-notary \
+//   --apple-id <you@example.com> --team-id JB72T5K5AU --password <app-specific-password>
+const NOTARY_PROFILE = 'diffier-notary';
+
 module.exports = async function afterSign(context) {
   if (context.electronPlatformName !== 'darwin') return;
+  // ponytail: notarization is opt-in via NOTARIZE=1 so local/dev `yarn dist`
+  // stays fast and doesn't need the keychain profile set up.
+  if (!process.env.NOTARIZE) return;
+
   const appPath = path.join(
     context.appOutDir,
     `${context.packager.appInfo.productFilename}.app`
   );
-
-  const { APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID } = process.env;
-  if (!APPLE_ID || !APPLE_APP_SPECIFIC_PASSWORD || !APPLE_TEAM_ID) {
-    // ponytail: no Apple credentials in env (local/dev build) — ad-hoc sign so
-    // the app still launches, skip notarization. Real signing/notarizing
-    // needs a Developer ID cert in the keychain plus these three env vars.
-    execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath]);
-    return;
-  }
-
-  await notarize({
-    appBundleId: 'com.fitzgeraldweb.diffier',
-    appPath,
-    appleId: APPLE_ID,
-    appleIdPassword: APPLE_APP_SPECIFIC_PASSWORD,
-    teamId: APPLE_TEAM_ID,
-  });
+  await notarize({ appPath, keychainProfile: NOTARY_PROFILE });
 };
