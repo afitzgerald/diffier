@@ -22,6 +22,7 @@
     "monaco-editor": "^0.56.0"
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "@shikijs/monaco": "^4.4.3",
     "@types/node": "^26.4.0",
     "electron": "^44.1.0",
@@ -33,7 +34,7 @@
     "typescript": "^7.0.2"
   },
   "build": {
-    "appId": "com.diffier.app",
+    "appId": "com.fitzgeraldweb.diffier",
     "productName": "Diffier",
     "directories": {
       "output": "dist"
@@ -52,13 +53,14 @@
     "afterSign": "build/afterSign.js",
     "artifactName": "${productName}-build${env.BUILD_NUMBER}-${arch}.${ext}",
     "mac": {
-      "identity": null,
       "category": "public.app-category.developer-tools",
       "target": [
         "dmg",
         "zip"
       ],
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     }
   },
   "packageManager": "yarn@4.18.0+sha512.fcb8716fe7cd0eece141ffc18b92193a9df9204c1ba83189c288835223fc0bbe64af473bab0d5e9927a7daeb5caf2bb07eb2787cc9338ca040ea125f2a1f2f7e"
