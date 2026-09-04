@@ -96,15 +96,7 @@ function handleTreeKey(e: KeyboardEvent): boolean {
     case ' ':
       if (row) {
         if (row.kind === 'file') toggleChecked(row.file.path);
-        else {
-          const all = collectFiles(row.node);
-          const anyUnchecked = all.some((f) => !state.checked.has(f.path));
-          for (const f of all) {
-            if (anyUnchecked) state.checked.add(f.path);
-            else state.checked.delete(f.path);
-          }
-          renderTree();
-        }
+        else toggleDirChecked(row.node);
       }
       return true;
     case 'Enter':

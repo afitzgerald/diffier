@@ -397,22 +397,8 @@ function buildCommitRowEl(row: TreeRow<CommitFile>, det: CommitDetails): HTMLEle
   el.dataset.key = row.key;
   el.style.paddingLeft = indentPx(row.depth);
 
-  const chev = document.createElement('span');
-  chev.className = 'tree-chevron';
-
   if (row.kind === 'dir') {
-    chev.textContent = state.log.collapsed.has(row.key) ? '▸' : '▾';
-    el.appendChild(chev);
-
-    const name = document.createElement('span');
-    name.className = 'dir-name file-name';
-    name.textContent = row.node.name;
-    el.appendChild(name);
-
-    const count = document.createElement('span');
-    count.className = 'dir-count';
-    count.textContent = String(countFiles(row.node));
-    el.appendChild(count);
+    appendDirLabel(el, row.node, row.key, state.log.collapsed);
 
     el.addEventListener('click', () => {
       if (state.log.collapsed.has(row.key)) state.log.collapsed.delete(row.key);
@@ -420,6 +406,8 @@ function buildCommitRowEl(row: TreeRow<CommitFile>, det: CommitDetails): HTMLEle
       renderCommitFileTree(det);
     });
   } else {
+    const chev = document.createElement('span');
+    chev.className = 'tree-chevron';
     el.appendChild(chev);
     el.dataset.path = row.file.path;
     if (state.readOnlyDiff && row.file.path === state.readOnlyDiff.path) el.classList.add('selected');
@@ -435,11 +423,7 @@ function buildCommitRowEl(row: TreeRow<CommitFile>, det: CommitDetails): HTMLEle
 }
 
 function selectCommitFileRow(path: string): void {
-  for (const el of $('log-details-files').querySelectorAll('.tree-row')) {
-    const match = (el as HTMLElement).dataset.path === path;
-    el.classList.toggle('selected', match);
-    if (match) (el as HTMLElement).scrollIntoView({ block: 'nearest' });
-  }
+  highlightRowByPath('log-details-files', path);
 }
 
 // F7-style next/prev file within the currently shown commit (mirrors
@@ -448,14 +432,10 @@ function selectCommitFileByOffset(delta: number, revealEnd?: boolean): boolean {
   const det = state.log.details;
   if (!det) return false;
   const rows = state.log.rows.filter((r): r is TreeFileRow<CommitFile> => r.kind === 'file');
-  if (!rows.length) return false;
-  let idx = rows.findIndex((r) => state.readOnlyDiff && r.file.path === state.readOnlyDiff.path);
-  if (idx === -1) idx = delta > 0 ? -1 : 0;
-  const next = idx + delta;
-  if (next < 0 || next >= rows.length) return false;
-  const f = rows[next]!.file;
-  selectCommitFileRow(f.path);
-  openCommitFileDiff(det, f, revealEnd);
+  const row = findRowByOffset(rows, state.readOnlyDiff?.path, delta);
+  if (!row) return false;
+  selectCommitFileRow(row.file.path);
+  openCommitFileDiff(det, row.file, revealEnd);
   return true;
 }
 
