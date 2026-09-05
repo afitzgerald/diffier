@@ -1,0 +1,130 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  # Deploy pushes release tags using the default GITHUB_TOKEN, and pushes
+  # authenticated that way don't trigger other workflows (a deliberate
+  # GitHub anti-recursion rule) — so the `push: tags` trigger above never
+  # fires for automated tags. Deploy calls this dispatch instead.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and release (e.g. v1.2.3)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      # workflow_dispatch can be triggered manually with any string, and
+      # inputs.tag feeds straight into checkout's ref: below — reject
+      # anything that isn't an exact vX.Y.Z tag before it's used as a ref.
+      - name: Validate tag input
+        if: inputs.tag != ''
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::invalid tag input: $TAG (want vX.Y.Z)" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Resolve version
+        id: version
+        env:
+          TAG_REF: ${{ inputs.tag || github.ref_name }}
+        run: |
+          echo "tag=$TAG_REF" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG_REF#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build, sign, notarize, and publish the DMG
+        env:
+          # Code-signing: a base64-encoded Developer ID Application .p12
+          # and its password. electron-builder imports it into a temporary
+          # keychain itself — no code changes needed for signing.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # Notarization: build/afterSign.js uses these three when present
+          # (falls back to a local keychain profile for dev machines).
+          NOTARIZE: "1"
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The push:tags trigger's github.ref_name isn't validated against
+          # vX.Y.Z like inputs.tag is above (that step only runs for
+          # workflow_dispatch) — pass it through env, never interpolate a
+          # ref name directly into the script.
+          TAG: ${{ inputs.tag || github.ref_name }}
+          # Otherwise the dist script's own BUILD_NUMBER fallback names the
+          # artifact "Diffier-builddev-*", which is wrong for a real release.
+          BUILD_NUMBER: ${{ inputs.tag || github.ref_name }}
+        run: yarn dist "-c.extraMetadata.version=${TAG#v}" --publish always
+
+      # electron-builder's --publish above already created the GitHub
+      # release and uploaded the DMG; this just points the tap at it.
+      - name: Publish Homebrew cask
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          arch="$(uname -m)"
+          dmg="dist/Diffier-build${TAG}-${arch}.dmg"
+          sha256="$(shasum -a 256 "$dmg" | cut -d' ' -f1)"
+
+          # `gh repo clone` authenticates through the gh binary itself, but a
+          # plain `git push` afterwards uses git's own HTTP transport, which
+          # has no credential helper in a headless runner. This registers gh
+          # as that helper so the push below can actually authenticate.
+          gh auth setup-git
+
+          rm -rf /tmp/tap
+          gh repo clone afitzgerald/homebrew-diffier /tmp/tap
+          mkdir -p /tmp/tap/Casks
+
+          cat > /tmp/tap/Casks/diffier.rb <<EOF
+          cask "diffier" do
+            version "${VERSION}"
+            sha256 "${sha256}"
+
+            url "https://github.com/afitzgerald/diffier/releases/download/${TAG}/Diffier-build${TAG}-${arch}.dmg"
+            name "Diffier"
+            desc "IntelliJ-style Git commit tool window + diff viewer for macOS"
+            homepage "https://github.com/afitzgerald/diffier"
+
+            depends_on macos: :sonoma
+
+            app "Diffier.app"
+
+            zap trash: [
+              "~/Library/Application Support/Diffier",
+            ]
+          end
+          EOF
+
+          cd /tmp/tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/diffier.rb
+          git commit -m "diffier ${TAG}"
+          git push

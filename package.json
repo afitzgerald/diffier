@@ -5,6 +5,7 @@
   "description": "IntelliJ-style Git diff editor for macOS",
   "author": "Alan Fitzgerald",
   "license": "MIT",
+  "repository": "github:afitzgerald/diffier",
   "main": "main/main.js",
   "scripts": {
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.highlighter.json --noEmit && tsc -p tsconfig.test.json --noEmit",
@@ -55,6 +56,10 @@
     "icon": "build/icon.icns",
     "afterSign": "build/afterSign.js",
     "artifactName": "${productName}-build${env.BUILD_NUMBER}-${arch}.${ext}",
+    "publish": {
+      "provider": "github",
+      "releaseType": "release"
+    },
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [

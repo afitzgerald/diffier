@@ -1,6 +1,7 @@
-name: Build macOS DMG
+name: Test
 
 on:
+  pull_request:
   push:
     branches:
       - main
@@ -29,12 +30,19 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Unit + integration tests
+        run: yarn test
+
       - name: Build DMG
         env:
           BUILD_NUMBER: ${{ github.run_number }}
         run: yarn dist -c.buildVersion=$BUILD_NUMBER --publish never
 
       - name: Prune old artifacts (keep last 2 successful builds)
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
