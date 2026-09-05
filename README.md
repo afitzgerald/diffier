@@ -1,5 +1,11 @@
 # Diffier
 
+> **⚠️ Alpha software.** Diffier is early and evolving fast. Expect rough
+> edges, missing polish, and occasional breaking changes between releases.
+> It writes to your working tree and git index (commits, staging, rollback),
+> so use it on repos you have backed up / can recover, and please
+> [report issues](https://github.com/afitzgerald/diffier/issues) you hit.
+
 An IntelliJ-style Git diff editor for macOS. It recreates the JetBrains
 commit tool window and diff viewer — same layout, same keybindings, same
 flow — as a standalone desktop app for reviewing, editing, and committing
@@ -142,14 +148,25 @@ tooltips. Tree navigation (`↑` `↓` `←` `→` `Space` `⏎`) is fixed.
 Fetch, Stash, and Blame Annotations are unbound by default — bind them in
 Settings or use the **Git** / **View** menus.
 
-## Running
+## Installing (Homebrew)
+
+```sh
+brew install --cask afitzgerald/diffier/diffier
+```
+
+This installs the signed, notarized `.dmg` from the latest
+[release](https://github.com/afitzgerald/diffier/releases). Requires macOS
+Sonoma or later. Since this is alpha software, expect frequent updates —
+`brew upgrade --cask diffier` to get the latest.
+
+The app reopens the last repository on launch; use `⌘O` to pick another.
+
+## Running from source
 
 ```sh
 yarn install   # also builds the shiki highlighter bundle (postinstall)
 yarn start     # compiles the TypeScript sources first, then launches
 ```
-
-The app reopens the last repository on launch; use `⌘O` to pick another.
 
 ## Building the macOS app
 
