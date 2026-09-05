@@ -38,6 +38,14 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
 
+      - name: Resolve version
+        id: version
+        env:
+          TAG_REF: ${{ inputs.tag || github.ref_name }}
+        run: |
+          echo "tag=$TAG_REF" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG_REF#v}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -71,3 +79,52 @@ jobs:
           # artifact "Diffier-builddev-*", which is wrong for a real release.
           BUILD_NUMBER: ${{ inputs.tag || github.ref_name }}
         run: yarn dist "-c.extraMetadata.version=${TAG#v}" --publish always
+
+      # electron-builder's --publish above already created the GitHub
+      # release and uploaded the DMG; this just points the tap at it.
+      - name: Publish Homebrew cask
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          arch="$(uname -m)"
+          dmg="dist/Diffier-build${TAG}-${arch}.dmg"
+          sha256="$(shasum -a 256 "$dmg" | cut -d' ' -f1)"
+
+          # `gh repo clone` authenticates through the gh binary itself, but a
+          # plain `git push` afterwards uses git's own HTTP transport, which
+          # has no credential helper in a headless runner. This registers gh
+          # as that helper so the push below can actually authenticate.
+          gh auth setup-git
+
+          rm -rf /tmp/tap
+          gh repo clone afitzgerald/homebrew-diffier /tmp/tap
+          mkdir -p /tmp/tap/Casks
+
+          cat > /tmp/tap/Casks/diffier.rb <<EOF
+          cask "diffier" do
+            version "${VERSION}"
+            sha256 "${sha256}"
+
+            url "https://github.com/afitzgerald/diffier/releases/download/${TAG}/Diffier-build${TAG}-${arch}.dmg"
+            name "Diffier"
+            desc "IntelliJ-style Git commit tool window + diff viewer for macOS"
+            homepage "https://github.com/afitzgerald/diffier"
+
+            depends_on macos: :sonoma
+
+            app "Diffier.app"
+
+            zap trash: [
+              "~/Library/Application Support/Diffier",
+            ]
+          end
+          EOF
+
+          cd /tmp/tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/diffier.rb
+          git commit -m "diffier ${TAG}"
+          git push
