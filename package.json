@@ -46,6 +46,7 @@
     "files": [
       "main/**",
       "renderer/**",
+      "build/icon.png",
       "!main/**/*.ts",
       "!renderer/**/*.ts",
       "!renderer/global.d.ts",
