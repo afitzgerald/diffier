@@ -67,13 +67,24 @@ jobs:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --generate-notes
 
+      # electron-builder 26.15/26.16's own CSC_LINK handling has a bug: the
+      # temp keychain it creates gets a random unlock password, but its
+      # `set-key-partition-list -k` call is passed CSC_KEY_PASSWORD (the
+      # cert's *import* password) instead — so it always fails with
+      # `SecKeychainUnlock: The user name or passphrase you entered is not
+      # correct`, independent of whether the cert/password are right
+      # (electron-userland/electron-builder#10066; fixed upstream but not
+      # yet in a published release). Importing the cert ourselves with this
+      # known-good action sidesteps electron-builder's broken keychain path
+      # entirely — it then auto-discovers the identity via CSC_IDENTITY_AUTO_DISCOVERY.
+      - name: Import code-signing certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.CSC_LINK }}
+          p12-password: ${{ secrets.CSC_KEY_PASSWORD }}
+
       - name: Build, sign, notarize, and publish the DMG
         env:
-          # Code-signing: a base64-encoded Developer ID Application .p12
-          # and its password. electron-builder imports it into a temporary
-          # keychain itself — no code changes needed for signing.
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           # Notarization: build/afterSign.js uses these three when present
           # (falls back to a local keychain profile for dev machines).
           NOTARIZE: "1"
