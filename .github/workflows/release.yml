@@ -56,6 +56,17 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      # electron-builder publishes the dmg and zip targets concurrently; if
+      # the release doesn't exist yet, both race to create it and one
+      # target's upload silently drops (seen on v0.0.3 — only the zip's
+      # blockmap made it, dmg never uploaded). Pre-creating it here makes
+      # electron-builder attach to an existing release instead of racing.
+      - name: Ensure GitHub release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --generate-notes
+
       - name: Build, sign, notarize, and publish the DMG
         env:
           # Code-signing: a base64-encoded Developer ID Application .p12
