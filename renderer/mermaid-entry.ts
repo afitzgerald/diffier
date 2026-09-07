@@ -2,6 +2,14 @@
  * Mermaid diagram bundle entry — built by esbuild into renderer/mermaid.js
  * (see package.json "build:mermaid", run on postinstall).
  *
+ * The bundle is wrapped in `(function(define){ … })()` (the banner/footer in
+ * "build:mermaid"): several of mermaid's deps ship UMD wrappers whose first
+ * branch is `typeof define === 'function' && define.amd`, and Monaco's AMD
+ * loader has already put a global `define` on the page — they'd register as
+ * anonymous modules and the whole script dies with "Can only have one
+ * anonymous define call per script file". Shadowing `define` sends them down
+ * their CommonJS branch instead.
+ *
  * Renders ```mermaid fenced code blocks in the markdown preview
  * (renderer/app/markdown.ts). securityLevel: 'strict' sanitizes any
  * HTML/click-handler content mermaid would otherwise inject into labels —
