@@ -252,8 +252,12 @@ async function main(): Promise<void> {
   const port = typeof address === 'object' && address ? address.port : 0;
   const url = `http://127.0.0.1:${port}/renderer/index.html`;
 
+  // Sandboxes ship a chromium at a fixed path; on a dev machine that path
+  // doesn't exist, so fall through to Playwright's own downloaded browser
+  // (executablePath undefined = let Playwright resolve it).
+  const chromiumPath = process.env.DIFFIER_CHROMIUM || '/opt/pw-browsers/chromium';
   const browser = await chromium.launch({
-    executablePath: process.env.DIFFIER_CHROMIUM || '/opt/pw-browsers/chromium',
+    executablePath: fs.existsSync(chromiumPath) ? chromiumPath : undefined,
     args: ['--no-sandbox'],
   });
   const page: Page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
@@ -287,8 +291,12 @@ async function main(): Promise<void> {
   });
   // The assertions assume non-mac key semantics (Mod = Ctrl); pin
   // navigator.platform so the suite also passes on a macOS dev machine.
+  // Defined on Navigator.prototype (where the real accessor lives) — current
+  // Chromium makes the own property non-configurable, so redefining it on the
+  // instance throws "Cannot redefine property" and the pin silently never
+  // applies.
   await page.addInitScript(
-    "Object.defineProperty(navigator, 'platform', { get: () => 'Linux x86_64' });"
+    "Object.defineProperty(Navigator.prototype, 'platform', { configurable: true, get: () => 'Linux x86_64' });"
   );
   await page.goto(url);
 
@@ -345,7 +353,13 @@ async function main(): Promise<void> {
   await expect('alpha.js open', async () =>
     (await page.locator('#diff-file-path').textContent()) === 'src/alpha.js');
   await expect('2 differences reported', async () =>
-    (await page.locator('#diff-count').textContent()) === '2 differences');
+    /^2 differences\b/.test((await page.locator('#diff-count').textContent()) || ''));
+
+  // Mod+F in an editor view hands over to Monaco's own find widget.
+  await page.keyboard.press('Control+f');
+  await expect('Mod+F opens Monaco\'s find widget in the text diff', async () =>
+    (await page.locator('#diff-editor .find-widget.visible').count()) === 1);
+  await page.keyboard.press('Escape');
 
   // --- F7 navigation: first change → second change → armed toast → next file
   const line = async (): Promise<boolean | undefined> =>
@@ -631,7 +645,7 @@ async function main(): Promise<void> {
   await page.locator('#btn-refresh').click();
   await page.locator('.tree-row[data-key="file:src/alpha.js"]').click();
   await expect('alpha.js reopened with 2 hunks', async () =>
-    (await page.locator('#diff-count').textContent()) === '2 differences');
+    /^2 differences\b/.test((await page.locator('#diff-count').textContent()) || ''));
   await expect('hunk checkboxes rendered in the gutter', async () =>
     (await page.locator('.hunk-check.checked').count()) === 2);
   await page.locator('.hunk-check').nth(1).click();
@@ -926,6 +940,39 @@ async function main(): Promise<void> {
   await page.keyboard.press('Shift+F7');
   await expect('Shift+F7 past the first change shows a toast instead of looping', async () =>
     /No more changes/.test((await page.locator('#toast').textContent()) || ''));
+  // --- markdown find bar (Mod+F): the rendered pane has no editor, so
+  // matches are painted with the CSS Custom Highlight API.
+  await page.keyboard.press('Control+f');
+  await expect('Mod+F opens the markdown find bar and focuses its input', async () =>
+    !((await page.locator('#md-find-bar').getAttribute('class')) || '').includes('hidden') &&
+    (await page.evaluate(() => document.activeElement?.id)) === 'md-find-input');
+  await page.locator('#md-find-input').fill('EDITED');
+  const highlighted = () =>
+    page.evaluate(() => [
+      CSS.highlights.get('md-find')?.size ?? -1,
+      CSS.highlights.get('md-find-current')?.size ?? -1,
+    ]);
+  await expect('typing finds both edited blocks, first one current', async () =>
+    (await page.locator('#md-find-count').textContent()) === '1/2' &&
+    String(await highlighted()) === '1,1');
+  await page.keyboard.press('Enter');
+  await expect('Enter advances to the next match', async () =>
+    (await page.locator('#md-find-count').textContent()) === '2/2');
+  await page.keyboard.press('Enter');
+  await expect('Enter past the last match wraps around', async () =>
+    (await page.locator('#md-find-count').textContent()) === '1/2');
+  await page.keyboard.press('Shift+Enter');
+  await expect('Shift+Enter wraps backwards', async () =>
+    (await page.locator('#md-find-count').textContent()) === '2/2');
+  await page.locator('#md-find-input').fill('nothing here matches');
+  await expect('a query with no matches says so and highlights nothing', async () =>
+    (await page.locator('#md-find-count').textContent()) === 'No matches' &&
+    String(await highlighted()) === '0,0');
+  await page.keyboard.press('Escape');
+  await expect('Escape closes the find bar and drops the highlights', async () =>
+    ((await page.locator('#md-find-bar').getAttribute('class')) || '').includes('hidden') &&
+    String(await highlighted()) === '-1,-1');
+
   await page.locator('.tree-row[data-key="file:README.md"]').click();
   await page.locator('#btn-md-view').click();
 

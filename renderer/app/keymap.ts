@@ -100,6 +100,7 @@ function updateShortcutHints(): void {
   $<HTMLInputElement>('tree-filter').placeholder = 'Filter changes…' +
     (actionShortcut('filter') === 'None' ? '' : ` (${actionShortcut('filter')})`);
   $('status-branch').title = 'Branches' + hint('branches');
+  $<HTMLInputElement>('md-find-input').placeholder = 'Find in document…' + hint('find');
 }
 
 // Layout-stable key name from a keyboard event (e.key for shifted

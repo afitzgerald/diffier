@@ -114,6 +114,15 @@ $('btn-md-view').addEventListener('click', (e) => {
   }
 });
 
+// Find bar inside the markdown pane (Monaco's own widget covers the editors).
+$('md-find-input').addEventListener('input', () => runMdFind());
+$('md-find-input').addEventListener('keydown', (e) => {
+  if ((e as KeyboardEvent).key === 'Enter') stepMdFind((e as KeyboardEvent).shiftKey ? -1 : 1);
+});
+$('btn-md-find-next').addEventListener('click', () => stepMdFind(1));
+$('btn-md-find-prev').addEventListener('click', () => stepMdFind(-1));
+$('btn-md-find-close').addEventListener('click', closeMdFind);
+
 // Diff / Old / New buttons inside the markdown pane itself.
 $('md-mode-bar').addEventListener('click', (e) => {
   const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-md-mode]');

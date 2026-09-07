@@ -16,6 +16,7 @@ function showPane(which: DiffPaneView): void {
   $('markdown-diff').classList.toggle('hidden', which !== 'markdown');
   $('conflict-bar').classList.toggle('hidden', which !== 'conflict');
   $('viewer-mode').classList.toggle('hidden', which === 'markdown');
+  if (which !== 'markdown') closeMdFind();
 }
 
 function setDiffHeader(file: DiffableFile, extra?: string): void {
@@ -268,6 +269,7 @@ function showMarkdownPane(mode: MdPaneMode): void {
   showPane('markdown');
   updateMdDiffRuler();
   resetMdChangeNav();
+  refreshMdFind();
 }
 
 function disposeModels(): void {

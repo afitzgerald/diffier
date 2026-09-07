@@ -451,6 +451,8 @@ function buildMenu(): void {
         { role: 'copy' },
         { role: 'paste' },
         { role: 'selectAll' },
+        { type: 'separator' },
+        mi('find', 'Find in Diff / Document'),
       ],
     },
     {
