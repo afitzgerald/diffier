@@ -233,8 +233,9 @@ entry, tests) without writing any `.js`.
   Git layer and drives the full flow (tree, F7 navigation, editing +
   autosave, commit, rollback, hunk staging, blame, file history, log
   details, filtering, stash, branch create/switch, conflict resolution)
-  with Playwright. Set `DIFFIER_CHROMIUM` to your Chromium binary if it
-  is not at `/opt/pw-browsers/chromium`.
+  with Playwright. It uses `/opt/pw-browsers/chromium` when that path
+  exists and Playwright's own downloaded browser otherwise; set
+  `DIFFIER_CHROMIUM` to point at a specific binary.
 - `yarn smoke` — recompiles, then boots the real Electron app, loads
   the repo from `DIFFIER_SMOKE_REPO`, and fails on any renderer error.
 

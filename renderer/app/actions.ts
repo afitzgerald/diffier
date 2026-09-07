@@ -59,6 +59,7 @@ const ACTION_IMPL: Partial<Record<ActionId, () => void>> = {
     $('tree-filter').focus();
     $<HTMLInputElement>('tree-filter').select();
   },
+  find: () => findInView(),
   annotate: () => toggleBlame(),
   'zoom-in': () => zoomIn(),
   'zoom-out': () => zoomOut(),
@@ -143,6 +144,14 @@ window.addEventListener(
         e.preventDefault();
         closeKeymapDialog();
       }
+      return;
+    }
+
+    // Escape closes the markdown find bar before the keymap turns it into
+    // "focus changes tree".
+    if (mdFindOpen() && e.key === 'Escape') {
+      e.preventDefault();
+      closeMdFind();
       return;
     }
 

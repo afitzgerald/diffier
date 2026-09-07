@@ -99,6 +99,99 @@ function updateMdDiffRuler(): void {
   }
 }
 
+// ------------------------------------------------------ markdown find
+
+/* Find-in-document for the rendered markdown pane — the one view with no
+   editor, so Monaco's own find widget can't serve it. Matches are painted
+   with the CSS Custom Highlight API (Ranges, no DOM mutation), so the
+   rendered document and its diff tinting stay exactly as rendered and
+   clearing is one delete() per highlight. */
+
+let mdFindMatches: Range[] = [];
+let mdFindIndex = -1;
+
+function mdFindOpen(): boolean {
+  return !$('md-find-bar').classList.contains('hidden');
+}
+
+function openMdFind(): void {
+  $('md-find-bar').classList.remove('hidden');
+  const input = $<HTMLInputElement>('md-find-input');
+  input.focus();
+  input.select();
+  runMdFind(true);
+}
+
+function closeMdFind(): void {
+  $('md-find-bar').classList.add('hidden');
+  mdFindMatches = [];
+  mdFindIndex = -1;
+  CSS.highlights.delete('md-find');
+  CSS.highlights.delete('md-find-current');
+}
+
+// ponytail: plain case-insensitive substring, matched inside one text node —
+// a query straddling an inline element edge ("**bo**ld") won't hit. Search a
+// concatenation of the pane with an offset map if that ever matters.
+function runMdFind(keepIndex?: boolean): void {
+  const q = $<HTMLInputElement>('md-find-input').value.toLowerCase();
+  const prev = mdFindIndex;
+  mdFindMatches = [];
+  if (q) {
+    const walk = document.createTreeWalker($('md-diff-body'), NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      const text = (n.nodeValue || '').toLowerCase();
+      for (let i = text.indexOf(q); i !== -1; i = text.indexOf(q, i + q.length)) {
+        const r = document.createRange();
+        r.setStart(n, i);
+        r.setEnd(n, i + q.length);
+        mdFindMatches.push(r);
+      }
+    }
+  }
+  const wanted = keepIndex && prev > 0 ? prev : 0;
+  mdFindIndex = mdFindMatches.length ? Math.min(wanted, mdFindMatches.length - 1) : -1;
+  paintMdFind();
+}
+
+function paintMdFind(): void {
+  const current = mdFindIndex >= 0 ? mdFindMatches[mdFindIndex]! : null;
+  CSS.highlights.set('md-find', new Highlight(...mdFindMatches.filter((r) => r !== current)));
+  CSS.highlights.set('md-find-current', new Highlight(...(current ? [current] : [])));
+  $('md-find-count').textContent = mdFindMatches.length
+    ? `${mdFindIndex + 1}/${mdFindMatches.length}`
+    : $<HTMLInputElement>('md-find-input').value
+      ? 'No matches'
+      : '';
+  // Ranges have no scrollIntoView of their own; the containing element is
+  // close enough at markdown block sizes.
+  if (current) current.startContainer.parentElement?.scrollIntoView({ block: 'center', behavior: 'auto' });
+}
+
+function stepMdFind(delta: number): void {
+  if (!mdFindMatches.length) return;
+  mdFindIndex = (mdFindIndex + delta + mdFindMatches.length) % mdFindMatches.length;
+  paintMdFind();
+}
+
+// The pane re-renders on a mode switch, a file switch and every edit — the
+// old Ranges then point at nodes that are gone, so re-find from scratch.
+function refreshMdFind(): void {
+  if (mdFindOpen()) runMdFind(true);
+}
+
+// ⌘F: the markdown pane gets our bar, every editor view gets Monaco's own
+// find widget (the global keydown handler swallows the key before Monaco
+// would see it, so hand it over explicitly).
+function findInView(): void {
+  if (!$('markdown-diff').classList.contains('hidden')) return openMdFind();
+  const ed: monaco.editor.ICodeEditor | null =
+    state.conflict && conflictEditor ? conflictEditor : diffEditor ? diffEditor.getModifiedEditor() : null;
+  if (!ed) return void toast('Nothing to search');
+  ed.focus();
+  void ed.getAction('actions.find')?.run();
+}
+
 function nextDifference(): void {
   if (!$('markdown-diff').classList.contains('hidden')) {
     nextMarkdownChange();
