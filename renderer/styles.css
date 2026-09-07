@@ -1150,6 +1150,34 @@ kbd {
   padding: 2px;
 }
 
+/* Find-in-document bar for the rendered markdown pane (⌘F). */
+#md-find-bar {
+  position: absolute;
+  top: 6px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 2;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px;
+}
+#md-find-input { width: 200px; }
+#md-find-count { min-width: 64px; text-align: center; font-size: 11px; }
+
+/* CSS Custom Highlight API — see runMdFind() in navigation.ts. Painting the
+   matches this way leaves the rendered document (and its diff tinting)
+   completely untouched. */
+::highlight(md-find) {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+::highlight(md-find-current) {
+  background: var(--accent);
+  color: var(--bg);
+}
+
 /* Overview-ruler-style strip mirroring the Monaco diff editor's right-hand
    change markers, so scanning for changes doesn't require scrolling. */
 .md-diff-ruler {

@@ -25,6 +25,7 @@ export type ActionId =
   | 'rollback'
   | 'toggle-log'
   | 'filter'
+  | 'find'
   | 'annotate'
   | 'save'
   | 'open-repo'
@@ -75,6 +76,7 @@ export const ACTIONS: KeymapAction[] = [
   { id: 'rollback', label: 'Rollback Selected', default: 'Alt+Mod+Z' },
   { id: 'toggle-log', label: 'Log Tool Window', default: 'Mod+9' },
   { id: 'filter', label: 'Filter Changes', default: 'Mod+Shift+F' },
+  { id: 'find', label: 'Find in Diff / Document', default: 'Mod+F' },
   { id: 'annotate', label: 'Toggle Blame Annotations', default: null },
   { id: 'save', label: 'Save File', default: 'Mod+S' },
   { id: 'open-repo', label: 'Open Repository', default: 'Mod+O' },

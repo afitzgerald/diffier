@@ -132,12 +132,13 @@ needs the popup↔anchor pairing or toggle-off breaks.
   `test/git.test.ts` builds throwaway repos; extend it for any git.ts
   change.
 - `node test/ui.test.js` — full Playwright E2E against the real
-  renderer + real git layer over an HTTP shim (Chromium at
-  `/opt/pw-browsers/chromium`, override with `DIFFIER_CHROMIUM`). Run
-  `yarn build` first (nothing chains it since the test is invoked
-  directly, not via `yarn test`); run it before claiming any
-  renderer change works. Edit `test/ui.test.ts`, not the compiled
-  `test/ui.test.js`.
+  renderer + real git layer over an HTTP shim. Uses the sandbox
+  Chromium at `/opt/pw-browsers/chromium` when that path exists and
+  Playwright's own downloaded browser otherwise; `DIFFIER_CHROMIUM`
+  overrides both. Run `yarn build` first (nothing chains it since the
+  test is invoked directly, not via `yarn test`); run it before
+  claiming any renderer change works. Edit `test/ui.test.ts`, not the
+  compiled `test/ui.test.js`.
 - `yarn smoke` — boots real Electron headless-ish; needs the Electron
   binary (often unavailable in sandboxes; the UI test is the substitute).
 - `yarn typecheck` — fast `--noEmit` check across all four
