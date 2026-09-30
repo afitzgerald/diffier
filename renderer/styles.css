@@ -639,7 +639,7 @@ kbd {
 
 /* ---------------------------------------------------------- about dialog */
 
-#about-overlay {
+#about-overlay, #whatsnew-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
@@ -648,7 +648,7 @@ kbd {
   justify-content: center;
   z-index: 200;
 }
-#about-overlay.hidden { display: none; }
+#about-overlay.hidden, #whatsnew-overlay.hidden { display: none; }
 
 #about-dialog {
   width: 340px;
@@ -696,12 +696,32 @@ kbd {
   margin-bottom: 16px;
 }
 
-#about-dialog .dialog-footer {
+#about-dialog .dialog-footer, #whatsnew-dialog .dialog-footer {
   width: 100%;
   border-top: 1px solid var(--border);
   padding: 14px 0 0;
   margin-top: 8px;
 }
+
+/* ------------------------------------------------------ what's new dialog */
+
+#whatsnew-dialog {
+  width: 460px;
+  max-height: 70vh;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px;
+}
+#whatsnew-title { margin: 0 0 12px; font-size: 18px; color: var(--text-bright); }
+#whatsnew-body { overflow-y: auto; line-height: 1.5; }
+#whatsnew-body ul { margin: 0 0 12px; padding-left: 18px; }
+#whatsnew-body code { font-family: var(--font-mono); font-size: 0.92em; }
+.whatsnew-version { margin: 8px 0 4px; font-size: 14px; color: var(--text-bright); }
+.whatsnew-section { margin: 6px 0 4px; font-size: 13px; }
 
 /* ------------------------------------------------------------ panel tabs */
 

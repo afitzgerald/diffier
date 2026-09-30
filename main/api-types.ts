@@ -48,11 +48,17 @@ export interface Settings {
   panelWidth?: number;
   panelSide?: 'left' | 'right';
   commitHistory?: string[];
+  whatsNewSeen?: string; // app version whose release notes were last shown
 }
 
 export interface AppInfo {
   name: string;
   version: string;
+}
+
+export interface WhatsNewRelease {
+  version: string;
+  sections: { title: string; items: string[] }[];
 }
 
 export interface ConfirmOptions {
@@ -121,6 +127,9 @@ export interface DiffierApi {
   gitLastMessage(): Promise<string>;
   setBadge(count: number): Promise<void>;
   getAppInfo(): Promise<AppInfo>;
+  // unseen: the releases since the one last shown, marking this one seen;
+  // otherwise every release baked into this build.
+  getWhatsNew(unseen: boolean): Promise<WhatsNewRelease[]>;
 
   saveFile(relPath: string, content: string): Promise<void>;
   revealFile(relPath: string): Promise<void>;

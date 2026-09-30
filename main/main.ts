@@ -8,6 +8,7 @@ import * as fsp from 'fs/promises';
 import * as gitlib from './git';
 import * as keymap from './keymap';
 import { THEMES, DEFAULT_THEME } from './themes';
+import * as whatsNew from './whats-new';
 import type { ActionId, Binding } from './keymap';
 import type { CommitOptions, ConfirmOptions, RepoInfo, RollbackTarget, Settings } from './api-types';
 import type { ThemeId } from './themes';
@@ -65,6 +66,16 @@ function saveSettings(patch: Partial<Settings>): Settings {
   }
   return merged;
 }
+
+// Release notes baked in by the Release workflow (see main/whats-new.ts);
+// absent in a local build, which leaves What's New empty.
+const WHATS_NEW = (() => {
+  try {
+    return whatsNew.parse(fs.readFileSync(path.join(__dirname, '..', 'WhatsNew.md'), 'utf8'));
+  } catch {
+    return [];
+  }
+})();
 
 // ----------------------------------------------------------------- watcher
 
@@ -311,6 +322,15 @@ handle('app:badge', (_state, count: number) => {
   }
 });
 handle('app:info', () => ({ name: app.name, version: app.getVersion() }));
+handle('app:whatsNew', (_state, unseen: boolean) => {
+  if (!unseen) return whatsNew.releasesAfter(WHATS_NEW, '0', app.getVersion());
+  // Every window asks at boot; the first one to ask marks the version seen,
+  // so only it shows the dialog.
+  const seen = loadSettings().whatsNewSeen;
+  if (!WHATS_NEW.length || seen === app.getVersion()) return [];
+  saveSettings({ whatsNewSeen: app.getVersion() });
+  return whatsNew.releasesAfter(WHATS_NEW, seen, app.getVersion());
+});
 handle('file:save', (state, relPath: string, content: string) =>
   gitlib.saveFile(requireRepo(state), relPath, content)
 );
@@ -529,6 +549,12 @@ function buildMenu(): void {
           };
         }),
       ],
+    },
+    {
+      label: 'Help',
+      role: 'help',
+      // Off in a local build, which has no notes baked in.
+      submenu: [{ ...mi('whats-new', "What's New in Diffier"), enabled: WHATS_NEW.length > 0 }],
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

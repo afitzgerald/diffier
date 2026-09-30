@@ -24,6 +24,7 @@ import type {
   RepoInfo as RepoInfo_,
   RollbackTarget as RollbackTarget_,
   Settings as Settings_,
+  WhatsNewRelease as WhatsNewRelease_,
 } from '../main/api-types';
 import type {
   AheadBehind as AheadBehind_,
@@ -125,6 +126,7 @@ declare global {
   type RepoInfo = RepoInfo_;
   type RollbackTarget = RollbackTarget_;
   type Settings = Settings_;
+  type WhatsNewRelease = WhatsNewRelease_;
   type StashEntry = StashEntry_;
   type StatusResult = StatusResult_;
   type ActionId = ActionId_;

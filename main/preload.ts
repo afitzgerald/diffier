@@ -57,6 +57,7 @@ const api: DiffierApi = {
   gitLastMessage: () => call('git:lastMessage'),
   setBadge: (count) => call('app:badge', count),
   getAppInfo: () => call('app:info'),
+  getWhatsNew: (unseen) => call('app:whatsNew', unseen),
 
   saveFile: (relPath, content) => call('file:save', relPath, content),
   revealFile: (relPath) => call('shell:reveal', relPath),

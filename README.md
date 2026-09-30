@@ -195,7 +195,9 @@ Three GitHub Actions workflows, same shape end to end:
    Release.
 3. **Release** (`.github/workflows/release.yml`) — builds, code-signs,
    notarizes, and publishes the signed DMG/zip to a GitHub Release for that
-   tag.
+   tag. The release notes are generated from merged PR titles, grouped by
+   label (`.github/release.yml`), and baked into the app as its What's New
+   dialog.
 
 Release needs these repo secrets: `CSC_LINK` / `CSC_KEY_PASSWORD` (a
 base64-encoded Developer ID Application `.p12` and its password, for
