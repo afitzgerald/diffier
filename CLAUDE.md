@@ -145,6 +145,35 @@ needs the popup↔anchor pairing or toggle-off breaks.
   `tsconfig*.json` programs; run after any `.ts` edit even if you're not
   about to run the full suite.
 
+## Pull requests are release notes
+
+Every merge to `main` is its own patch release (Deploy → Release), and
+that release's notes are GitHub's generated notes: **each PR's title is
+its line, and its label picks the heading** (`.github/release.yml`). The
+same text, with the last nine releases', is baked into the app as
+`WhatsNew.md` (`scripts/release_notes.sh`) and shown once after an update,
+and from Help → What's New. A PR title is written for someone *using* the
+app, not for a reviewer, and it is final at merge time — the build bakes
+it in.
+
+- **Title**: what the user can now do or no longer suffers, in the
+  imperative — "Find text in the markdown preview", "Keep the blame
+  gutter aligned after a zoom". No `feat:`/`fix:` prefix (the label says
+  that), no file or type names, no trailing period. Commit subjects stay
+  conventional — `scripts/next_version.sh` reads those, not PR titles
+  (merges are merge commits, so the title never becomes a subject).
+- **Label, exactly one**: `enhancement` (**New**), `bug` (**Fixed**), or
+  `internal` for anything a user cannot notice (CI, build, refactors) and
+  `documentation` for docs — both left out of the notes. An unlabelled PR
+  lands under **Other changes**, which is the sign one was missed.
+  `gh pr create --label enhancement`; `gh pr edit <n> --add-label bug`.
+
+"Seen" is keyed on `app.getVersion()` (`whatsNewSeen` in settings). A
+local build has no `WhatsNew.md`, so nothing shows; to try it, drop a
+`WhatsNew.md` at the repo root with a `# v<package.json version>`
+header and `yarn start` (delete `whatsNewSeen` from `settings.json` to
+see it again).
+
 ## Misc
 
 - Settings persist to `settings.json` in `userData` via

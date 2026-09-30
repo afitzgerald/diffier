@@ -21,3 +21,6 @@ renderer/mermaid.js
 test/*.js
 
 .omc
+
+# Release notes baked in by the Release workflow (scripts/release_notes.sh)
+/WhatsNew.md

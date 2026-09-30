@@ -67,6 +67,18 @@ jobs:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --generate-notes
 
+      # The notes just generated above (grouped by .github/release.yml), plus
+      # the last nine releases', become the app's What's New
+      # (main/whats-new.ts). Baked rather than fetched at runtime: works
+      # offline and always matches the build. `files` in package.json ships it.
+      - name: Bake release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          scripts/release_notes.sh "$TAG" > WhatsNew.md
+          cat WhatsNew.md
+
       # electron-builder 26.15/26.16's own CSC_LINK handling has a bug: the
       # temp keychain it creates gets a random unlock password, but its
       # `set-key-partition-list -k` call is passed CSC_KEY_PASSWORD (the

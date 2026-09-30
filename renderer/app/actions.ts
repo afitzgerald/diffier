@@ -66,6 +66,7 @@ const ACTION_IMPL: Partial<Record<ActionId, () => void>> = {
   'zoom-reset': () => zoomReset(),
   'keymap-settings': () => toggleKeymapDialog(),
   'about-dialog': () => toggleAboutDialog(),
+  'whats-new': () => void openWhatsNew(false),
 };
 
 function runAction(id: ActionId | string): void {
@@ -160,6 +161,13 @@ window.addEventListener(
       if (e.key === 'Escape') {
         e.preventDefault();
         closeAboutDialog();
+      }
+      return;
+    }
+    if (whatsNewOpen) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeWhatsNew();
       }
       return;
     }

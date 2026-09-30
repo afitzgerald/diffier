@@ -225,6 +225,7 @@ $('amend-checkbox').addEventListener('change', async (e) => {
   applyTheme(state.settings.theme || DEFAULT_THEME);
   diffEditor!.updateOptions({ renderSideBySide: state.settings.viewMode !== 'unified' });
   for (const t of DIFF_TOGGLES) t.apply(diffToggleOn(t));
+  void openWhatsNew(true);
   try {
     const repo = await window.api.openLastRepo();
     if (repo) await setRepo(repo);

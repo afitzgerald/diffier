@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && tsc -p tsconfig.test.json && yarn build:preload",
     "start": "yarn build && electron .",
     "smoke": "yarn build && DIFFIER_SMOKE=1 electron --no-sandbox .",
-    "test": "yarn build && node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js",
+    "test": "yarn build && node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js && node test/whats-new.test.js",
     "build:highlighter": "esbuild renderer/highlighter-entry.ts --bundle --format=iife --minify --log-level=warning --outfile=renderer/highlighter.js",
     "build:mermaid": "esbuild renderer/mermaid-entry.ts --bundle --format=iife --minify --log-level=warning --banner:js=\"(function(define){\" --footer:js=\"})();\" --outfile=renderer/mermaid.js",
     "build:preload": "esbuild main/preload.ts --bundle --platform=node --format=cjs --external:electron --log-level=warning --outfile=main/preload.js",
@@ -52,7 +52,8 @@
       "!renderer/global.d.ts",
       "node_modules/monaco-editor/min/**",
       "node_modules/monaco-editor/min-maps/**",
-      "package.json"
+      "package.json",
+      "WhatsNew.md"
     ],
     "icon": "build/icon.icns",
     "afterSign": "build/afterSign.js",
