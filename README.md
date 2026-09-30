@@ -292,3 +292,7 @@ renderer/
                postinstall): TextMate grammars + JS regex engine + monaco
                wiring via @shikijs/monaco
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
