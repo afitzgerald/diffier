@@ -133,6 +133,7 @@ const rpc: Record<string, (args: unknown[]) => Promise<unknown>> = {
   'app:badge': async () => null,
   'app:info': async () => ({ name: 'Diffier', version: '0.0.0-test' }),
   'app:whatsNew': async () => [],
+  'app:acknowledgements': async () => fs.readFileSync(path.join(ROOT, 'LICENSE'), 'utf8'),
   'file:save': ([p, c]) => gitlib.saveFile(repo, p as string, c as string),
   'settings:get': async () => settings,
   'settings:set': async ([patch]) => Object.assign(settings, patch),
@@ -220,6 +221,7 @@ const API_SHIM = `
         gitBlame: 'git:blame', gitConflictInfo: 'git:conflictInfo',
         gitMarkResolved: 'git:markResolved', gitCommitTemplate: 'git:commitTemplate',
         setBadge: 'app:badge', getAppInfo: 'app:info', getWhatsNew: 'app:whatsNew',
+        getAcknowledgements: 'app:acknowledgements',
         gitRollback: 'git:rollback',
         gitLastMessage: 'git:lastMessage', saveFile: 'file:save',
         getSettings: 'settings:get', setSettings: 'settings:set',
@@ -1014,6 +1016,15 @@ async function main(): Promise<void> {
   await page.locator('.tree-row[data-key="file:plain.txt"]').click();
   await expect('markdown toggle hidden for non-md file', async () =>
     ((await page.locator('#btn-md-view').getAttribute('class')) || '').includes('hidden'));
+
+  // --- Help → Acknowledgements shows the license text; Escape closes it
+  await page.evaluate("runAction('acknowledgements')");
+  await expect('acknowledgements dialog shows the MIT license', async () =>
+    !((await page.locator('#ack-overlay').getAttribute('class')) || '').includes('hidden') &&
+    ((await page.locator('#ack-body').textContent()) || '').startsWith('MIT License'));
+  await page.keyboard.press('Escape');
+  await expect('Escape closes the acknowledgements dialog', async () =>
+    ((await page.locator('#ack-overlay').getAttribute('class')) || '').includes('hidden'));
 
   // Final cleanup.
   await gitlib.rollback(repo, (await gitlib.status(repo)).files);

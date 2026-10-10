@@ -297,4 +297,6 @@ renderer/
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Third-party code that ships in the app is
+listed, with its licenses, in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+and under Help → Acknowledgements.

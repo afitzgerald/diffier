@@ -1,0 +1,150 @@
+#!/usr/bin/env node
+// Writes THIRD_PARTY_NOTICES.md: the license of every third-party package that
+// ships inside the app. MIT, ISC and BSD all require their notices to travel
+// with the binary; electron-builder copies this file into the bundle and the
+// app shows it under Help → Acknowledgements.
+//
+// The package list comes from what esbuild actually bundles (its metafile),
+// not from package.json, so a transitive dependency mermaid pulls in is never
+// missed. Monaco is copied rather than bundled, so it is listed by hand.
+//
+//   node scripts/third_party_notices.mjs           rewrite the file
+//   node scripts/third_party_notices.mjs --check   exit 1 if it is stale (yarn test)
+import { build } from 'esbuild';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const ROOT = path.resolve(import.meta.dirname, '..');
+const OUT = path.join(ROOT, 'THIRD_PARTY_NOTICES.md');
+// The esbuild entries of `build:highlighter` and `build:mermaid` in package.json.
+const BUNDLES = ['renderer/highlighter-entry.ts', 'renderer/mermaid-entry.ts'];
+const COPIED = ['monaco-editor'];
+
+const FEATHER = `The MIT License (MIT)
+
+Copyright (c) 2013-2023 Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`;
+
+const LUCIDE = `ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.`;
+
+// The package directory a bundled input belongs to: the last node_modules/<name>
+// in its path, so a nested copy resolves to itself rather than its parent.
+function packageDir(input) {
+  const m = input.match(/^(.*node_modules\/(?:@[^/]+\/)?[^/]+)\//);
+  return m && path.resolve(ROOT, m[1]);
+}
+
+async function bundledPackages() {
+  const dirs = new Set(COPIED.map((p) => path.join(ROOT, 'node_modules', p)));
+  for (const entry of BUNDLES) {
+    const { metafile } = await build({
+      entryPoints: [path.join(ROOT, entry)],
+      bundle: true,
+      write: false,
+      metafile: true,
+      logLevel: 'error',
+    });
+    for (const input of Object.keys(metafile.inputs)) {
+      const dir = packageDir(input);
+      if (dir) dirs.add(dir);
+    }
+  }
+  return [...dirs].map((dir) => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+    const files = fs
+      .readdirSync(dir)
+      .filter((f) => /^(licen[cs]e|copying|thirdpartynotices)/i.test(f))
+      .sort();
+    const repo = typeof pkg.repository === 'string' ? pkg.repository : pkg.repository?.url;
+    // fastdom ships no license file; its package.json license and source are
+    // then the whole notice there is to give.
+    const text = files.length
+      ? files.map((f) => fs.readFileSync(path.join(dir, f), 'utf8').trim()).join('\n\n')
+      : `${pkg.license} license; no license file in the package. Source: ${repo}`;
+    return { name: pkg.name, version: pkg.version, license: pkg.license ?? '?', text };
+  });
+}
+
+function render(pkgs) {
+  pkgs.sort((a, b) => a.name.localeCompare(b.name));
+  // Many packages share one text verbatim (the d3 modules); print each once.
+  const byText = new Map();
+  for (const p of pkgs) byText.set(p.text, [...(byText.get(p.text) ?? []), p]);
+  const fence = (t) => '````\n' + t + '\n````';
+  return [
+    '# Third-party notices',
+    '',
+    '<!-- Generated by scripts/third_party_notices.mjs. Do not edit by hand. -->',
+    '',
+    'Diffier includes the third-party software below. Electron and Chromium',
+    'are not listed here: their licenses ship in the app\'s Resources folder as',
+    '`LICENSE.electron.txt` and `LICENSES.chromium.html`.',
+    '',
+    '| Component | Version | License |',
+    '|---|---|---|',
+    '| Feather icons (`renderer/icons`) | | MIT |',
+    '| Lucide icons (`renderer/icons`) | | ISC |',
+    ...pkgs.map((p) => `| ${p.name} | ${p.version} | ${p.license} |`),
+    '',
+    '## Feather icons',
+    '',
+    'Most icons in `renderer/icons` are copied from or based on Feather.',
+    '',
+    fence(FEATHER),
+    '',
+    '## Lucide icons',
+    '',
+    'Some icons in `renderer/icons` are copied from or based on Lucide.',
+    '',
+    fence(LUCIDE),
+    '',
+    ...[...byText].flatMap(([text, group]) => [
+      `## ${group.map((p) => p.name).join(', ')}`,
+      '',
+      fence(text),
+      '',
+    ]),
+  ].join('\n');
+}
+
+const next = render(await bundledPackages());
+if (process.argv.includes('--check')) {
+  const cur = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
+  if (cur !== next) {
+    console.error('THIRD_PARTY_NOTICES.md is stale: run `yarn notices` and commit the result.');
+    process.exit(1);
+  }
+} else {
+  fs.writeFileSync(OUT, next);
+}
