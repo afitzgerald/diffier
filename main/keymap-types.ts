@@ -36,7 +36,8 @@ export type ActionId =
   | 'zoom-reset'
   | 'keymap-settings'
   | 'about-dialog'
-  | 'whats-new';
+  | 'whats-new'
+  | 'acknowledgements';
 
 export interface KeymapAction {
   id: ActionId;
@@ -89,4 +90,5 @@ export const ACTIONS: KeymapAction[] = [
   { id: 'keymap-settings', label: 'Settings', default: 'Mod+,' },
   { id: 'about-dialog', label: 'About Diffier', default: null },
   { id: 'whats-new', label: "What's New", default: null },
+  { id: 'acknowledgements', label: 'Acknowledgements', default: null },
 ];

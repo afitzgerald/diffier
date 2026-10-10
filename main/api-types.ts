@@ -130,6 +130,8 @@ export interface DiffierApi {
   // unseen: the releases since the one last shown, marking this one seen;
   // otherwise every release baked into this build.
   getWhatsNew(unseen: boolean): Promise<WhatsNewRelease[]>;
+  // LICENSE followed by THIRD_PARTY_NOTICES.md, as shipped in the app.
+  getAcknowledgements(): Promise<string>;
 
   saveFile(relPath: string, content: string): Promise<void>;
   revealFile(relPath: string): Promise<void>;

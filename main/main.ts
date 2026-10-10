@@ -331,6 +331,13 @@ handle('app:whatsNew', (_state, unseen: boolean) => {
   saveSettings({ whatsNewSeen: app.getVersion() });
   return whatsNew.releasesAfter(WHATS_NEW, seen, app.getVersion());
 });
+// Both files ship in the app (package.json build.files): MIT requires the
+// third-party notices to travel with the binary, and this is where users read them.
+handle('app:acknowledgements', () =>
+  ['LICENSE', 'THIRD_PARTY_NOTICES.md']
+    .map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').trim())
+    .join('\n\n')
+);
 handle('file:save', (state, relPath: string, content: string) =>
   gitlib.saveFile(requireRepo(state), relPath, content)
 );
@@ -554,7 +561,10 @@ function buildMenu(): void {
       label: 'Help',
       role: 'help',
       // Off in a local build, which has no notes baked in.
-      submenu: [{ ...mi('whats-new', "What's New in Diffier"), enabled: WHATS_NEW.length > 0 }],
+      submenu: [
+        { ...mi('whats-new', "What's New in Diffier"), enabled: WHATS_NEW.length > 0 },
+        mi('acknowledgements', 'Acknowledgements'),
+      ],
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

@@ -58,6 +58,7 @@ const api: DiffierApi = {
   setBadge: (count) => call('app:badge', count),
   getAppInfo: () => call('app:info'),
   getWhatsNew: (unseen) => call('app:whatsNew', unseen),
+  getAcknowledgements: () => call('app:acknowledgements'),
 
   saveFile: (relPath, content) => call('file:save', relPath, content),
   revealFile: (relPath) => call('shell:reveal', relPath),

@@ -12,12 +12,13 @@
     "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && tsc -p tsconfig.test.json && yarn build:preload",
     "start": "yarn build && electron .",
     "smoke": "yarn build && DIFFIER_SMOKE=1 electron --no-sandbox .",
-    "test": "yarn build && node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js && node test/whats-new.test.js",
+    "test": "yarn build && node test/git.test.js && node test/keymap.test.js && node test/themes.test.js && node test/languages.test.js && node test/whats-new.test.js && node scripts/third_party_notices.mjs --check",
     "build:highlighter": "esbuild renderer/highlighter-entry.ts --bundle --format=iife --minify --log-level=warning --outfile=renderer/highlighter.js",
     "build:mermaid": "esbuild renderer/mermaid-entry.ts --bundle --format=iife --minify --log-level=warning --banner:js=\"(function(define){\" --footer:js=\"})();\" --outfile=renderer/mermaid.js",
     "build:preload": "esbuild main/preload.ts --bundle --platform=node --format=cjs --external:electron --log-level=warning --outfile=main/preload.js",
     "postinstall": "yarn build:highlighter || node -e \"console.warn('shiki highlighter bundle skipped; falling back to built-in grammars')\"; yarn build:mermaid || node -e \"console.warn('mermaid bundle skipped; mermaid fences will render as plain code blocks')\"",
-    "dist": "yarn build && yarn build:highlighter && yarn build:mermaid && BUILD_NUMBER=${BUILD_NUMBER:-dev} electron-builder --mac"
+    "dist": "yarn build && yarn build:highlighter && yarn build:mermaid && BUILD_NUMBER=${BUILD_NUMBER:-dev} electron-builder --mac",
+    "notices": "node scripts/third_party_notices.mjs"
   },
   "dependencies": {
     "monaco-editor": "^0.56.0"
@@ -53,7 +54,9 @@
       "node_modules/monaco-editor/min/**",
       "node_modules/monaco-editor/min-maps/**",
       "package.json",
-      "WhatsNew.md"
+      "WhatsNew.md",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md"
     ],
     "icon": "build/icon.icns",
     "afterSign": "build/afterSign.js",
@@ -72,7 +75,9 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "notarize": false
-    }
+    },
+    "copyright": "Copyright © 2026 Alan Fitzgerald and contributors",
+    "afterExtract": "build/afterExtract.js"
   },
   "packageManager": "yarn@4.18.0+sha512.fcb8716fe7cd0eece141ffc18b92193a9df9204c1ba83189c288835223fc0bbe64af473bab0d5e9927a7daeb5caf2bb07eb2787cc9338ca040ea125f2a1f2f7e"
 }

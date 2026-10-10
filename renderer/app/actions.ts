@@ -67,6 +67,7 @@ const ACTION_IMPL: Partial<Record<ActionId, () => void>> = {
   'keymap-settings': () => toggleKeymapDialog(),
   'about-dialog': () => toggleAboutDialog(),
   'whats-new': () => void openWhatsNew(false),
+  acknowledgements: () => void openAcknowledgements(),
 };
 
 function runAction(id: ActionId | string): void {
@@ -168,6 +169,13 @@ window.addEventListener(
       if (e.key === 'Escape') {
         e.preventDefault();
         closeWhatsNew();
+      }
+      return;
+    }
+    if (acknowledgementsOpen) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeAcknowledgements();
       }
       return;
     }
