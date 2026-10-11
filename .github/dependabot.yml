@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Actions are pinned to commit SHAs; this bumps the SHA and its
+  # `# vX.Y.Z` comment together. The cooldown matches .yarnrc.yml's
+  # npmMinimalAgeGate (72h): never adopt a release younger than 3 days.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      actions:
+        patterns: ["*"]
