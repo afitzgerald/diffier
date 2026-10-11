@@ -13,12 +13,12 @@ are not listed here: their licenses ship in the app's Resources folder as
 | @braintree/sanitize-url | 7.1.2 | MIT |
 | @iconify/utils | 3.1.4 | MIT |
 | @mermaid-js/parser | 1.2.1 | MIT |
-| @shikijs/core | 4.4.3 | MIT |
-| @shikijs/engine-javascript | 4.4.3 | MIT |
-| @shikijs/langs | 4.4.3 | MIT |
-| @shikijs/monaco | 4.4.3 | MIT |
-| @shikijs/primitive | 4.4.3 | MIT |
-| @shikijs/types | 4.4.3 | MIT |
+| @shikijs/core | 4.5.0 | MIT |
+| @shikijs/engine-javascript | 4.5.0 | MIT |
+| @shikijs/langs | 4.5.0 | MIT |
+| @shikijs/monaco | 4.5.0 | MIT |
+| @shikijs/primitive | 4.5.0 | MIT |
+| @shikijs/types | 4.5.0 | MIT |
 | @shikijs/vscode-textmate | 10.0.2 | MIT |
 | @upsetjs/venn.js | 2.0.0 | MIT |
 | ccount | 2.0.1 | MIT |
@@ -68,7 +68,7 @@ are not listed here: their licenses ship in the app's Resources folder as
 | dagre-d3-es | 7.0.14 | MIT |
 | dayjs | 1.11.23 | MIT |
 | delaunator | 5.1.0 | ISC |
-| dompurify | 3.4.13 | (MPL-2.0 OR Apache-2.0) |
+| dompurify | 3.4.16 | (MPL-2.0 OR Apache-2.0) |
 | es-toolkit | 1.50.0 | MIT |
 | fastdom | 1.0.12 | MIT |
 | hast-util-to-html | 9.0.5 | MIT |
@@ -83,7 +83,7 @@ are not listed here: their licenses ship in the app's Resources folder as
 | lodash-es | 4.18.1 | MIT |
 | marked | 16.4.2 | MIT |
 | mermaid | 11.17.2 | MIT |
-| monaco-editor | 0.56.0 | MIT |
+| monaco-editor | 0.57.0 | MIT |
 | oniguruma-parser | 0.12.2 | MIT |
 | oniguruma-to-es | 4.3.6 | MIT |
 | property-information | 7.2.0 | MIT |
