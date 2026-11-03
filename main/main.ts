@@ -440,11 +440,6 @@ function buildMenu(): void {
             submenu: [
               mi('about-dialog', 'About Diffier'),
               { type: 'separator' },
-              {
-                label: 'Install Command Line Launcher…',
-                click: () => installCliLauncher(),
-              },
-              { type: 'separator' },
               { role: 'hide' },
               { role: 'hideOthers' },
               { role: 'unhide' },
@@ -572,34 +567,9 @@ function buildMenu(): void {
 
 // --------------------------------------------------------------- cli helper
 
-// `diffier [dir]` from a terminal: a tiny launcher script that re-opens the
-// app pointed at the given (or current) directory.
-async function installCliLauncher(): Promise<void> {
-  // Resolve to an absolute path in the caller's shell — the app's own cwd
-  // is / when launched via `open`, so relative arguments would be useless.
-  const script = `#!/bin/sh\ntarget="$(cd "\${1:-.}" 2>/dev/null && pwd)" || {\n  echo "diffier: no such directory: \${1:-.}" >&2\n  exit 1\n}\nexec open -n -a "Diffier" --args "$target"\n`;
-  const target = '/usr/local/bin/diffier';
-  const parent = BrowserWindow.getFocusedWindow();
-  const show = (opts: Electron.MessageBoxOptions) =>
-    parent ? dialog.showMessageBox(parent, opts) : dialog.showMessageBox(opts);
-  try {
-    await fsp.writeFile(target, script, { mode: 0o755 });
-    show({
-      type: 'info',
-      message: 'Command line launcher installed',
-      detail: `${target} — run "diffier ." in any repository.`,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    show({
-      type: 'error',
-      message: 'Could not install the launcher',
-      detail:
-        `${message}\n\nInstall it manually:\n` +
-        `printf '${script.replace(/\n/g, '\\n')}' | sudo tee ${target} && sudo chmod +x ${target}`,
-    });
-  }
-}
+// `diffier [dir]` from a terminal is build/diffier, a tiny launcher script
+// that re-opens the app pointed at the given (or current) directory. The
+// app bundle ships it in Resources/bin, which the Homebrew cask links.
 
 // A directory passed on the command line (e.g. via the `diffier` launcher or
 // `electron . /path/to/repo`) wins over the last-opened repository.

@@ -150,6 +150,7 @@ jobs:
             depends_on macos: :sonoma
 
             app "Diffier.app"
+            binary "#{appdir}/Diffier.app/Contents/Resources/bin/diffier"
 
             zap trash: [
               "~/Library/Application Support/Diffier",
