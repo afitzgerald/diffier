@@ -100,9 +100,8 @@ working-tree changes in any Git repository.
   are undone, unversioned files are deleted (with confirmation).
 - **Multi-repo** — the titlebar is a repo switcher with recent
   repositories; linked git worktrees are detected and badged. A repository
-  path on the command line (or dropped on the dock icon) opens directly,
-  and **Install Command Line Launcher…** adds a `diffier` command. The
-  dock badge shows the changed-file count.
+  path on the command line (`diffier .`, or dropped on the dock icon)
+  opens directly. The dock badge shows the changed-file count.
 - **Live updates** — a file watcher refreshes the tree when the working
   tree or `.git` changes (commits from a terminal show up immediately).
 
@@ -155,7 +154,8 @@ brew install --cask afitzgerald/diffier/diffier
 ```
 
 This installs the signed, notarized `.dmg` from the latest
-[release](https://github.com/afitzgerald/diffier/releases). Requires macOS
+[release](https://github.com/afitzgerald/diffier/releases) and links the
+`diffier` command (`diffier .` opens the current repository). Requires macOS
 Sonoma or later. Since this is alpha software, expect frequent updates —
 `brew upgrade --cask diffier` to get the latest.
 
