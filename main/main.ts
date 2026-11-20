@@ -1,7 +1,7 @@
 'use strict';
 
-import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from 'electron';
-import type { MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, Menu, dialog, ipcMain, screen, shell } from 'electron';
+import type { MenuItemConstructorOptions, Rectangle } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
@@ -48,15 +48,23 @@ function focusedState(): WindowState | null {
 
 const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
 
-function loadSettings(): Settings {
+interface WindowPlacement {
+  bounds: Rectangle;
+  maximized: boolean;
+  fullscreen: boolean;
+}
+
+type StoredSettings = Settings & { windowPlacement?: WindowPlacement };
+
+function loadSettings(): StoredSettings {
   try {
-    return JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) as Settings;
+    return (JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) ?? {}) as StoredSettings;
   } catch {
     return {};
   }
 }
 
-function saveSettings(patch: Partial<Settings>): Settings {
+function saveSettings(patch: Partial<StoredSettings>): StoredSettings {
   const merged = { ...loadSettings(), ...patch };
   try {
     fs.mkdirSync(app.getPath('userData'), { recursive: true });
@@ -597,6 +605,35 @@ function argvRepo(argv: string[], cwd: string = process.cwd()): string | null {
 // ------------------------------------------------------------------ window
 
 const APP_ICON = path.join(__dirname, '..', 'build', 'icon.png');
+const MIN_WINDOW_WIDTH = 900;
+const MIN_WINDOW_HEIGHT = 560;
+
+function visibleWindowBounds(bounds: Rectangle | undefined): Rectangle | undefined {
+  if (!bounds) return;
+
+  const { x, y, width, height } = bounds;
+  if (
+    ![x, y, width, height].every((value) => Number.isInteger(value) && Math.abs(value) < 2 ** 31)
+    || width < MIN_WINDOW_WIDTH || height < MIN_WINDOW_HEIGHT
+  ) return;
+
+  // Keep the saved placement if the top-left corner and window controls are
+  // reachable, including when the window spans displays.
+  if (screen.getAllDisplays().some(({ workArea }) =>
+    x >= workArea.x && x + 100 <= workArea.x + workArea.width
+    && y >= workArea.y && y + 32 <= workArea.y + workArea.height
+  )) return { x, y, width, height };
+
+  const { workArea } = screen.getPrimaryDisplay();
+  const fittedWidth = Math.max(MIN_WINDOW_WIDTH, Math.min(width, workArea.width));
+  const fittedHeight = Math.max(MIN_WINDOW_HEIGHT, Math.min(height, workArea.height));
+  return {
+    x: workArea.x + Math.max(0, Math.floor((workArea.width - fittedWidth) / 2)),
+    y: workArea.y + Math.max(0, Math.floor((workArea.height - fittedHeight) / 2)),
+    width: fittedWidth,
+    height: fittedHeight,
+  };
+}
 
 // `pendingRepoDir` is consulted by the `repo:last` handler once this
 // window's renderer boots — used for windows created to point at a known
@@ -604,11 +641,17 @@ const APP_ICON = path.join(__dirname, '..', 'build', 'icon.png');
 // ever true for the first window of the process, the one allowed to fall
 // back to `process.argv` when it has no pending repo of its own.
 function createWindow(pendingRepoDir?: string, isPrimaryWindow = false): WindowState {
+  const placement = !SMOKE && windowStates.size === 0 ? loadSettings().windowPlacement : undefined;
+  const savedBounds = visibleWindowBounds(placement?.bounds);
+  const fullscreen = !!savedBounds && placement?.fullscreen === true;
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
-    minWidth: 900,
-    minHeight: 560,
+    ...savedBounds,
+    minWidth: MIN_WINDOW_WIDTH,
+    minHeight: MIN_WINDOW_HEIGHT,
+    // An explicit false disables the fullscreen button on macOS.
+    ...(fullscreen ? { fullscreen: true } : {}),
     backgroundColor: '#101113',
     icon: APP_ICON,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
@@ -630,8 +673,18 @@ function createWindow(pendingRepoDir?: string, isPrimaryWindow = false): WindowS
   };
   windowStates.set(win.id, state);
 
+  if (savedBounds && !fullscreen && placement?.maximized === true) win.maximize();
+  let closingPlacement: WindowPlacement | undefined;
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   win.on('focus', () => send(win, 'window-focus'));
+  win.on('close', () => {
+    if (SMOKE) return;
+    closingPlacement = {
+      bounds: win.getNormalBounds(),
+      maximized: win.isMaximized(),
+      fullscreen: win.isFullScreen(),
+    };
+  });
   win.on('closed', () => {
     stopWatching(state);
     // Scan by window id rather than `state.repoRoot` — a window created for
@@ -642,6 +695,7 @@ function createWindow(pendingRepoDir?: string, isPrimaryWindow = false): WindowS
       if (id === win.id) repoWindows.delete(root);
     }
     windowStates.delete(win.id);
+    if (closingPlacement && windowStates.size === 0) saveSettings({ windowPlacement: closingPlacement });
     buildMenu(); // Window menu's window list must drop the closed entry
   });
 
